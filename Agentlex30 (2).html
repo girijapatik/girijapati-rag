@@ -1,0 +1,3033 @@
+<!DOCTYPE html>
+<html lang="en"><head>    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agentic Chat - Multi-Provider (v2)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+    
+    <!-- SunEditor (Text Editor) -->
+    <link href="https://cdn.jsdelivr.net/npm/suneditor@latest/dist/css/suneditor.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/suneditor@latest/dist/suneditor.min.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/suneditor@latest/dist/plugins.min.js" crossorigin="anonymous"></script>
+    
+    <!-- Icons -->
+    <script src="https://unpkg.com/lucide@latest" crossorigin="anonymous"></script>
+    
+    <!-- File Converters -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" crossorigin="anonymous"></script>
+    
+    <!-- PDF Processing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js" crossorigin="anonymous"></script>
+    
+    <!-- DOCX Processing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.5.1/mammoth.browser.min.js" crossorigin="anonymous"></script>
+    
+    <!-- OCR Processing -->
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js" crossorigin="anonymous"></script>
+    
+    <!-- Markdown Processing -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js" crossorigin="anonymous"></script>
+    
+    <!-- Orama Search (In-browser DB) -->
+    <script type="module">
+        import * as Orama from 'https://cdn.jsdelivr.net/npm/@orama/orama@latest/+esm';
+        window.Orama = Orama;
+    </script>
+    
+    <!-- Word Exporter -->
+    <script src="https://unpkg.com/html-docx-js/dist/html-docx.js" crossorigin="anonymous"></script>
+    
+    <script>
+        // Fix for jsPDF v2.x UMD module
+        if (window.jspdf && window.jspdf.jsPDF) {
+            window.jspdf = window.jspdf.jsPDF;
+        }
+    </script>
+
+    <style>
+        html { scroll-behavior: smooth; }
+        body { font-family: 'Inter', sans-serif; background-color: #f5f5dc; overflow-x: hidden; }
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0,0,0,0.6); align-items: center; justify-content: center; z-index: 1100; backdrop-filter: blur(5px); opacity: 0; transition: opacity 0.3s ease; }
+        .modal-overlay.visible { opacity: 1; }
+        .modal-content { background-color: #fdf6e3; border-radius: 0.75rem; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); width: 90%; max-height: 90vh; display: flex; flex-direction: column; transform: scale(0.95); transition: transform 0.3s ease; }
+        .modal-overlay.visible .modal-content { transform: scale(1); }
+        .command-center { width: 95vw; max-width: 1400px; height: 90vh; }
+        .command-center-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1rem; }
+        .command-btn { background-color: white; border: 1px solid #e5e7eb; border-radius: 0.5rem; padding: 1rem; text-align: left; transition: all 0.2s ease; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+        .command-btn:hover { transform: translateY(-3px); border-color: #8B4513; box-shadow: 0 4px 10px rgba(139, 69, 19, 0.3); }
+        #loading-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(255, 255, 255, 0.9); z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; backdrop-filter: blur(8px); transition: opacity 0.3s ease; }
+        .loader { border: 8px solid #f3f3f3; border-top: 8px solid #654321; border-radius: 50%; width: 80px; height: 80px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .document-list-item { transition: background-color 0.2s; }
+        .document-list-item.active { background-color: #D2B48C; color: #5D4037; font-weight: 600; }
+        .result-item { border-bottom: 1px solid #e5e7eb; padding: 0.75rem 0.5rem; }
+        .result-title { font-weight: 600; color: #8B4513; cursor: pointer; }
+        .result-title:hover { text-decoration: underline; }
+        .result-snippet, .collapsible-matches p { margin-top: 4px; }
+        .result-snippet mark, #local-doc-viewer mark { background-color: #fef08a; padding: 1px 2px; border-radius: 3px; font-weight: 600; }
+        .ai-message-content ul, .doc-chat-bubble.ai ul, #legal-research-results ul { list-style-type: disc; padding-left: 20px; }
+        .ai-message-content ol, .doc-chat-bubble.ai ol, #legal-research-results ol { list-style-type: decimal; padding-left: 20px; }
+        .ai-message-content h1, .doc-chat-bubble.ai h1, #legal-research-results h1 { font-size: 1.25em; font-weight: bold; margin: 10px 0 5px; }
+        .ai-message-content h2, .doc-chat-bubble.ai h2, #legal-research-results h2 { font-size: 1.1em; font-weight: bold; margin: 8px 0 4px; }
+        .ai-message-content table, .doc-chat-bubble.ai table, #legal-research-results table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+        .ai-message-content th, .doc-chat-bubble.ai th, #legal-research-results th, .ai-message-content td, .doc-chat-bubble.ai td, #legal-research-results td { border: 1px solid #d1d5db; padding: 6px; text-align: left; }
+        .ai-message-content th, .doc-chat-bubble.ai th, #legal-research-results th { background-color: #f3f4f6; }
+        .ai-message-content blockquote, .doc-chat-bubble.ai blockquote, #legal-research-results blockquote { border-left: 4px solid #d1d5db; padding-left: 10px; margin-left: 0; color: #4b5563; }
+        .doc-chat-bubble { max-width: 85%; width: fit-content; padding: 8px 12px; border-radius: 16px; margin-bottom: 8px; }
+        .doc-chat-bubble.user { background-color: #8B4513; color: white; align-self: flex-end; }
+        .doc-chat-bubble.ai { background-color: #FFF8DC; color: #1f2937; align-self: flex-start; }
+        .header-judicial { background-color: #654321; }
+        .btn-judicial { background-color: #8B4513; color: white; font-weight: 500; transition: background-color 0.2s ease; }
+        .btn-judicial:hover { background-color: #A0522D; }
+        .sun-editor .se-btn-tray button.se-btn-ai-custom { background-color: #8B4513 !important; border-radius: 6px !important; margin: 2px 4px !important; padding: 4px !important; width: 32px !important; height: 32px !important; transition: background-color 0.2s ease; }
+        .sun-editor .se-btn-tray button.se-btn-ai-custom:hover { background-color: #A0522D !important; }
+        .sun-editor .se-btn-tray button.se-btn-ai-custom svg { stroke: white !important; width: 20px !important; height: 20px !important; }
+        .message-bubble-container { position: relative; }
+        .copy-btn { position: absolute; top: 0.5rem; right: 0.5rem; background-color: rgba(229, 231, 235, 0.7); padding: 0.25rem; border-radius: 0.375rem; color: #4b5563; opacity: 0; transition: opacity 0.2s; cursor: pointer; }
+        .group:hover .copy-btn { opacity: 1; }
+        .copy-btn:hover { background-color: #d1d5db; }
+        #legal-research-results .user-query-bubble { background-color: #e5e7eb; padding: 0.75rem; border-radius: 0.5rem; font-style: italic; color: #4b5563; margin-bottom: 1rem; }
+
+        .ai-message-content { word-wrap: break-word; overflow-wrap: break-word; }
+        .ai-message-content pre { white-space: pre-wrap; word-wrap: break-word; overflow-x: auto; background-color: #f3f4f6; padding: 0.75rem; border-radius: 0.375rem; font-size: 0.875em; max-width: 100%; box-sizing: border-box; }
+        .ai-message-content code:not(pre code) { word-wrap: break-word; background-color: #e5e7eb; padding: 0.1em 0.3em; border-radius: 0.25rem; font-size: 0.9em; }
+        .ai-message-content table { width: auto; max-width: 100%; display: block; overflow-x: auto; white-space: nowrap; border-collapse: collapse; margin: 1em 0; border: 1px solid #d1d5db; box-sizing: border-box; }
+        .ai-message-content th, .ai-message-content td { white-space: normal; padding: 6px 10px; border: 1px solid #d1d5db; text-align: left; vertical-align: top; }
+        .ai-message-content th { background-color: #f9fafb; font-weight: 600; }
+        #editor-status-overlay { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background-color: rgba(0, 0, 0, 0.75); color: white; padding: 20px 30px; border-radius: 10px; z-index: 10000; backdrop-filter: blur(5px); text-align: center; box-shadow: 0 5px 15px rgba(0,0,0,0.3); transition: opacity 0.3s ease; }
+        #editor-status-overlay .editor-loader { border: 4px solid #f3f3f3; border-top: 4px solid #a0522d; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 0 auto 15px; }
+        
+        /* Styles for Multi-Section Builder */
+        .section-item { border: 1px solid #e5e7eb; border-radius: 0.5rem; padding: 1rem; position: relative; display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+        .section-item .full-width { grid-column: 1 / -1; }
+        .section-item label { font-weight: 500; font-size: 0.875rem; color: #4b5563; margin-bottom: 0.25rem; display: block;}
+        .section-item input, .section-item textarea { width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 0.375rem; font-size: 0.875rem; }
+        .section-item .answer-field { background-color: #f9fafb; min-height: 120px; }
+        .section-item .delete-section-btn { position: absolute; top: 0.5rem; right: 0.5rem; color: #9ca3af; }
+        .section-item .delete-section-btn:hover { color: #ef4444; }
+
+        /* NEW: Styles for collapsible thoughts panel */
+        .thoughts-panel { border-top: 1px dashed #d1d5db; margin-top: 12px; padding-top: 8px; }
+        .thoughts-panel summary { cursor: pointer; font-size: 0.8rem; font-weight: 500; color: #6b7280; user-select: none;}
+        .thoughts-panel summary:hover { color: #1f2937; }
+        .thoughts-content { margin-top: 8px; font-size: 0.75rem; color: #4b5563; white-space: pre-wrap; max-height: 200px; overflow-y: auto; background-color: #f9fafb; padding: 8px; border-radius: 4px; border: 1px solid #e5e7eb;}
+    </style>
+</head>
+<body class="bg-f5f5dc">
+
+<div id="editor-status-overlay">
+    <div class="editor-loader"></div>
+    <p id="editor-status-text" class="font-semibold">Processing...</p>
+</div>
+
+<div id="loading-overlay" style="display: none;">
+    <div class="loader"></div>
+    <p id="loading-text" class="mt-4 text-lg font-semibold text-gray-700">Initializing...</p>
+</div>
+
+<div class="h-screen w-screen flex flex-col">
+    <header class="header-judicial shadow-md sticky top-0 z-40 p-4 border-b border-black/20 flex justify-between items-center flex-shrink-0">
+        <div>
+            <h1 class="text-2xl font-bold text-white">Agentic Chat</h1>
+            <p class="mt-1 text-sm text-gray-300">A simple interface for complex tasks.</p>
+        </div>
+        <div class="flex items-center gap-2">
+            <button id="command-center-btn" class="btn-judicial flex items-center gap-2 py-2 px-4 rounded-lg"><i data-lucide="box"></i><span>Command Center</span></button>
+            <button id="settings-btn-header" class="p-2 rounded-full text-white hover:bg-white/20" title="Settings">
+                <i data-lucide="settings"></i>
+            </button>
+            <button id="clear-chat-btn-header" class="p-2 rounded-full text-white hover:bg-white/20" title="Clear Conversation">
+                <i data-lucide="trash-2"></i>
+            </button>
+        </div>
+    </header>
+
+    <main class="flex-grow flex flex-col p-4 overflow-y-hidden">
+        <div id="chat-messages" class="flex-grow overflow-y-auto p-2 mb-4"></div>
+       <div class="mt-auto flex items-center gap-2 px-4 py-2 bg-white rounded-full shadow-lg border">
+            <label for="chat-file-input" class="cursor-pointer p-2 rounded-full hover:bg-gray-200" title="Upload Document"><i data-lucide="paperclip" class="h-5 w-5 text-gray-600"></i></label>
+            <input type="file" id="chat-file-input" class="hidden" multiple="" accept=".pdf,.docx,.html,.txt,image/*">
+            
+            <div class="relative" title="Select Web Mode">
+                <button id="web-mode-btn" class="cursor-pointer p-2 rounded-full hover:bg-gray-200 flex items-center gap-1">
+                    <i id="web-mode-icon" data-lucide="globe" class="h-5 w-5 text-gray-400"></i> </button>
+                <div id="web-mode-dropdown" class="absolute bottom-full mb-2 left-0 w-48 bg-white rounded-md shadow-lg border z-50" style="display: none;">
+                    <a href="#" data-mode="off" class="web-mode-option flex items-center gap-2 p-2 text-sm text-gray-700 hover:bg-gray-100">
+                        <i data-lucide="x-circle" class="h-4 w-4 text-gray-400"></i>
+                        <span>Off (Local Only)</span>
+                    </a>
+                    <a href="#" data-mode="websearch" class="web-mode-option flex items-center gap-2 p-2 text-sm text-gray-700 hover:bg-gray-100">
+                        <i data-lucide="search" class="h-4 w-4 text-blue-500"></i>
+                        <span>WebSearch</span>
+                    </a>
+                    <a href="#" data-mode="legalresearch" class="web-mode-option flex items-center gap-2 p-2 text-sm text-gray-700 hover:bg-gray-100">
+                        <i data-lucide="gavel" class="h-4 w-4 text-amber-800"></i>
+                        <span>Legal Research</span>
+                    </a>
+                </div>
+            </div>
+            <input type="text" id="chat-input" placeholder="Ask a question..." class="flex-grow bg-transparent focus:outline-none">
+            <button id="chat-send" class="btn-judicial rounded-full p-2"><i data-lucide="send" class="h-5 w-5"></i></button>
+        </div>
+    </main>
+</div>
+
+<div id="command-center-modal" class="modal-overlay">
+    <div class="modal-content command-center">
+        <div class="flex justify-between items-center p-4 bg-white border-b rounded-t-lg">
+            <h3 class="text-xl font-semibold flex items-center gap-2"><i data-lucide="box" class="text-amber-800"></i>Command Center</h3>
+            <button id="command-center-close" class="p-2 rounded-full hover:bg-gray-200"><i data-lucide="x"></i></button>
+        </div>
+        <div class="p-6 flex-grow overflow-y-auto">
+            <h4 class="text-lg font-semibold text-gray-800 border-b pb-2 mb-4">Actions</h4>
+            <div class="command-center-grid">
+                <button id="cmd-ediscovery" class="command-btn">
+                    <div class="flex items-center gap-3"><i data-lucide="folder-search"></i><span class="font-semibold">E-Discovery Center</span></div>
+                    <p class="text-xs text-gray-500 mt-1">Browse and manage all uploaded documents.</p>
+                </button>
+                <button id="cmd-full-text-search" class="command-btn">
+                    <div class="flex items-center gap-3"><i data-lucide="search-code"></i><span class="font-semibold">Full Text Search</span></div>
+                    <p class="text-xs text-gray-500 mt-1">Search document pages and chat history.</p>
+                </button>
+                <button id="cmd-draft" class="command-btn">
+                    <div class="flex items-center gap-3"><i data-lucide="file-edit"></i><span class="font-semibold">Open Drafting Pad</span></div>
+                    <p class="text-xs text-gray-500 mt-1">Open a full-page editor to create a new document.</p>
+                </button>
+                <button id="cmd-edited-drafts" class="command-btn">
+                    <div class="flex items-center gap-3"><i data-lucide="file-check-2"></i><span class="font-semibold">Edited Drafts</span></div>
+                    <p class="text-xs text-gray-500 mt-1">Manage, edit, and download your HTML drafts.</p>
+                </button>
+                <button id="cmd-clear-chat" class="command-btn">
+                    <div class="flex items-center gap-3"><i data-lucide="trash-2"></i><span class="font-semibold">Clear Chat History</span></div>
+                    <p class="text-xs text-gray-500 mt-1">Removes all messages from the main chat.</p>
+                </button>
+                 <button id="cmd-settings" class="command-btn">
+                    <div class="flex items-center gap-3"><i data-lucide="settings"></i><span class="font-semibold">Settings</span></div>
+                    <p class="text-xs text-gray-500 mt-1">Configure API keys and manage app data.</p>
+                </button>
+                <button id="cmd-export-data" class="command-btn">
+                    <div class="flex items-center gap-3"><i data-lucide="download"></i><span class="font-semibold">Export Data</span></div>
+                    <p class="text-xs text-gray-500 mt-1">Save all documents and chats to a JSON file.</p>
+                </button>
+                <button id="cmd-import-data" class="command-btn">
+                    <div class="flex items-center gap-3"><i data-lucide="upload"></i><span class="font-semibold">Import Data</span></div>
+                    <p class="text-xs text-gray-500 mt-1">Load documents and chats from a JSON file.</p>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="settings-modal" class="modal-overlay">
+    <div class="modal-content max-w-2xl">
+        <div class="flex justify-between items-center p-4 bg-white border-b rounded-t-lg">
+            <h3 class="text-xl font-semibold flex items-center gap-2"><i data-lucide="settings" class="text-amber-800"></i>Settings</h3>
+            <button id="settings-modal-close" class="p-2 rounded-full hover:bg-gray-200"><i data-lucide="x"></i></button>
+        </div>
+        <div class="p-6 space-y-6 overflow-y-auto">
+            
+            <div>
+                <h4 class="text-lg font-semibold text-gray-800 mb-2">AI Provider Configuration</h4>
+                
+                <div class="space-y-4">
+                    <div>
+                        <label for="api-url-input" class="block text-sm font-medium text-gray-700 mb-1">API URL (Chat Completions)</label>
+                        <input type="text" id="api-url-input" class="w-full p-2 border rounded-md text-sm" placeholder="e.g., https://api.groq.com/openai/v1/chat/completions">
+                    </div>
+
+                    <div>
+                        <label for="ai-provider-api-key-input" class="block text-sm font-medium text-gray-700 mb-1">AI Provider API Key</label>
+                        <input type="password" id="ai-provider-api-key-input" class="w-full p-2 border rounded-md text-sm" placeholder="Enter your provider API key">
+                    </div>
+                    
+                    <div>
+                        <label for="model-select-input" class="block text-sm font-medium text-gray-700 mb-1">Select Model</label>
+                        <div class="flex gap-2">
+                            <select id="model-select-input" class="w-full p-2 border rounded-md text-sm bg-white">
+                                <option value="">--- Fetch models first ---</option>
+                            </select>
+                            <button id="fetch-models-btn" class="btn-judicial px-4 py-2 rounded-md text-sm flex-shrink-0">Fetch Models</button>
+                        </div>
+                        <p id="model-fetch-status" class="text-xs text-gray-500 mt-1"></p>
+                    </div>
+                     <button id="save-ai-settings-btn" class="btn-judicial mt-2 px-4 py-2 rounded-md text-sm">Save AI Settings</button>
+                </div>
+            </div>
+
+            <div class="border-t pt-6">
+                <h4 class="text-lg font-semibold text-gray-800 mb-2">Tavily Research API</h4>
+                <div>
+                    <label for="tavily-api-key-input" class="block text-sm font-medium text-gray-700 mb-1">Tavily API Key</label>
+                    <input type="password" id="tavily-api-key-input" class="w-full p-2 border rounded-md text-sm" placeholder="Enter your Tavily API key">
+                    <button id="save-tavily-api-key-btn" class="btn-judicial mt-2 px-4 py-2 rounded-md text-sm">Save Key</button>
+                </div>
+            </div>
+          
+            <!-- MODIFIED: Agent & Processing Settings Section Updated -->
+            <div class="border-t pt-6">
+                <h4 class="text-lg font-semibold text-gray-800 mb-2">Agent & Processing Settings</h4>
+                <div class="space-y-4">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <label for="ocr-toggle" class="block text-sm font-medium text-gray-700">Enable OCR for Scanned Documents</label>
+                            <p class="text-xs text-gray-500">Extracts text from images and scanned PDFs.</p>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="ocr-toggle" class="sr-only peer" checked>
+                            <div class="w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-2 peer-focus:ring-amber-300 dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-500 peer-checked:bg-amber-800"></div>
+                        </label>
+                    </div>
+
+                    <div class="flex items-center justify-between border-t pt-4">
+                        <div>
+                            <label for="deep-scan-toggle" class="block text-sm font-medium text-gray-700">Enable Deep Scan Augmentation</label>
+                            <p class="text-xs text-gray-500">Slower, high-accuracy mode that scans every document. Keep off for faster responses.</p>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="deep-scan-toggle" class="sr-only peer">
+                            <div class="w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-2 peer-focus:ring-amber-300 dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-500 peer-checked:bg-amber-800"></div>
+                        </label>
+                    </div>
+
+                    <div>
+                        <label for="deep-scan-chunk-input" class="block text-sm font-medium text-gray-700">Deep Scan Chunk Size (Pages)</label>
+                        <p class="text-xs text-gray-500 mb-1">Your preferred number of pages to process per AI call during a Deep Scan. The system may enforce a higher minimum based on the AI model's context capacity.</p>
+                        <input type="number" id="deep-scan-chunk-input" class="w-full p-2 border rounded-md text-sm" value="75" step="25">
+                    </div>
+                    
+                    <div class="border-t pt-4">
+                        <label for="context-switch-limit-input" class="block text-sm font-medium text-gray-700">Simple Mode Threshold (Tokens)</label>
+                        <p class="text-xs text-gray-500 mb-1">If total document tokens exceed this, the multi-step DAS agent is used. Below this, a faster, direct method is used.</p>
+                        <input type="number" id="context-switch-limit-input" class="w-full p-2 border rounded-md text-sm" value="100000" step="10000">
+                        <button id="save-agent-settings-btn" class="btn-judicial mt-2 px-4 py-2 rounded-md text-sm">Save Agent Settings</button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="border-t pt-6">
+                <h4 class="text-lg font-semibold text-gray-800 mb-2">Data Management</h4>
+                <p class="text-sm text-gray-500 mb-4">This will clear all documents and chat histories from this browser. Your API keys will not be removed.</p>
+                <button id="reset-app-data-btn" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-md text-sm">Reset App Data</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="search-modal" class="modal-overlay">
+    <div class="modal-content max-w-7xl h-[90vh]">
+        <div class="flex justify-between items-center p-4 bg-white border-b">
+            <h3 class="text-xl font-semibold">Full Text Document Search</h3>
+            <button id="search-modal-close" class="p-2 rounded-full hover:bg-gray-200"><i data-lucide="x"></i></button>
+        </div>
+        <div class="p-4 border-b flex gap-4 items-center">
+            <input type="search" id="search-modal-input" placeholder="Enter keyword to search across all document pages..." class="w-full p-2 border rounded-md text-sm">
+            <button id="search-modal-find-btn" class="btn-judicial px-4 py-2 rounded-md">Find</button>
+        </div>
+        <div class="flex-grow flex p-4 gap-4 overflow-hidden">
+            <div class="w-1/3 h-full flex flex-col">
+                <div id="search-results-summary" class="flex-shrink-0 text-sm font-semibold text-gray-600 pb-2 mb-2 border-b"></div>
+                <div id="search-results-list" class="flex-grow overflow-y-auto">
+                    <p class="text-gray-500">Search results will appear here.</p>
+                </div>
+            </div>
+            <div id="search-interaction-pane" class="w-2/3 h-full flex flex-col">
+                 <p class="text-gray-500 text-center mt-10">Click a result title to view the full document.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="library-modal" class="modal-overlay">
+    <div class="modal-content h-full max-h-full w-full max-w-7xl flex flex-col bg-gray-100">
+        <div class="flex-shrink-0 bg-white shadow-sm p-4 border-b flex justify-between items-center">
+            <h3 class="text-xl font-semibold">E-Discovery Center</h3>
+            <button id="library-modal-close" class="p-2 rounded-full hover:bg-gray-200"><i data-lucide="x"></i></button>
+        </div>
+        <div class="flex-grow flex p-4 gap-4 overflow-hidden">
+            <div class="w-1/3 xl:w-1/4 bg-white rounded-lg shadow-md flex flex-col">
+                <div class="p-4 border-b">
+                    <h2 class="text-lg font-bold text-gray-800 flex items-center gap-2 mb-4"><i data-lucide="folder"></i> All Documents</h2>
+                    <div class="relative">
+                        <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400"></i>
+                        <input type="search" id="library-search-input" placeholder="Filter documents..." class="w-full pl-9 p-2 border rounded-md text-sm">
+                    </div>
+                </div>
+                <nav id="library-document-list" class="flex-grow overflow-y-auto p-2 space-y-1"></nav>
+            </div>
+            <main class="w-2/3 xl:w-3/4 flex flex-col bg-gray-200 rounded-lg shadow-inner">
+                <div id="library-viewer-header" class="flex-shrink-0 p-2 border-b bg-white rounded-t-lg shadow-sm items-center justify-between" style="display: none;">
+                    <p class="font-semibold truncate" id="library-viewer-title"></p>
+                    <div id="library-viewer-actions" class="flex items-center gap-2">
+                        <button id="library-viewer-download-doc-btn" class="hidden flex items-center gap-1 text-xs bg-green-100 text-green-800 px-2 py-1 rounded hover:bg-green-200"><i data-lucide="file-down" class="h-3 w-3"></i><span>Download DOC</span></button>
+                        <button id="library-viewer-edit-btn" class="hidden flex items-center gap-1 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded hover:bg-blue-200"><i data-lucide="edit" class="h-3 w-3"></i><span>Edit</span></button>
+                        <button id="library-viewer-copy-btn" class="flex items-center gap-1 text-xs bg-gray-200 px-2 py-1 rounded hover:bg-gray-300"><i data-lucide="copy" class="h-3 w-3"></i><span>Copy Full Text</span></button>
+                        <button id="library-viewer-chat-btn" class="btn-judicial flex items-center gap-1 text-xs px-2 py-1 rounded"><i data-lucide="message-circle" class="h-3 w-3"></i><span>Chat with Document</span></button>
+                    </div>
+                </div>
+                <div id="library-viewer-container" class="flex-grow flex items-center justify-center relative bg-gray-200 overflow-hidden rounded-b-lg">
+                    <div id="library-placeholder-text" class="text-center text-gray-500 p-4">
+                        <h3 class="font-semibold text-lg">Select a document to view</h3>
+                        <p class="text-sm mt-2">If your library is empty, upload your first file using the paperclip icon in the main chat bar.</p>
+                    </div>
+                    <iframe id="library-doc-viewer" class="w-full h-full border-0" style="display: none;"></iframe>
+                </div>
+            </main>
+        </div>
+    </div>
+</div>
+
+<div id="edited-docs-modal" class="modal-overlay">
+    <div class="modal-content h-full max-h-full w-full max-w-7xl flex flex-col bg-gray-100">
+        <div class="flex-shrink-0 bg-white shadow-sm p-4 border-b flex justify-between items-center">
+            <h3 class="text-xl font-semibold">Edited Drafts</h3>
+            <button id="edited-docs-modal-close" class="p-2 rounded-full hover:bg-gray-200"><i data-lucide="x"></i></button>
+        </div>
+        <div class="flex-grow flex p-4 gap-4 overflow-hidden">
+            <div class="w-1/3 xl:w-1/4 bg-white rounded-lg shadow-md flex flex-col">
+                <div class="p-4 border-b">
+                    <h2 class="text-lg font-bold text-gray-800 flex items-center gap-2 mb-4"><i data-lucide="file-check-2"></i> All Drafts</h2>
+                    <p class="text-xs text-gray-500">These are raw HTML drafts saved from the editor.</p>
+                </div>
+                <nav id="edited-docs-list" class="flex-grow overflow-y-auto p-2 space-y-1"></nav>
+            </div>
+            <main class="w-2/3 xl:w-3/4 flex flex-col bg-gray-200 rounded-lg shadow-inner">
+                <div id="edited-docs-viewer-header" class="flex-shrink-0 p-2 border-b bg-white rounded-t-lg shadow-sm items-center justify-between" style="display: none;">
+                    <p class="font-semibold truncate" id="edited-docs-viewer-title"></p>
+                    <div id="edited-docs-viewer-actions" class="flex items-center gap-2">
+                         <button id="edited-docs-reopen-btn" class="btn-judicial flex items-center gap-1 text-xs px-2 py-1 rounded"><i data-lucide="edit" class="h-3 w-3"></i><span>Re-open in Editor</span></button>
+                        <button id="edited-docs-download-html-btn" class="flex items-center gap-1 text-xs bg-green-100 text-green-800 px-2 py-1 rounded hover:bg-green-200"><i data-lucide="download" class="h-3 w-3"></i><span>Download HTML</span></button>
+                        <button id="edited-docs-delete-btn" class="flex items-center gap-1 text-xs bg-red-100 text-red-800 px-2 py-1 rounded hover:bg-red-200"><i data-lucide="trash-2" class="h-3 w-3"></i><span>Delete</span></button>
+                    </div>
+                </div>
+                <div class="flex-grow flex items-center justify-center relative bg-gray-200 overflow-hidden rounded-b-lg">
+                    <div id="edited-docs-placeholder-text" class="text-center text-gray-500 p-4">
+                        <h3 class="font-semibold text-lg">Select a draft to view</h3>
+                        <p class="text-sm mt-2">Create new drafts from the Drafting Pad.</p>
+                    </div>
+                    <iframe id="edited-docs-viewer" class="w-full h-full border-0" style="display: none;"></iframe>
+                </div>
+            </main>
+        </div>
+    </div>
+</div>
+
+<div id="doc-chat-modal" class="modal-overlay">
+    <div class="modal-content max-w-3xl h-[70vh]">
+        <div class="flex justify-between items-center p-4 bg-white border-b">
+            <h3 id="doc-chat-title" class="text-xl font-semibold">Chat with Document</h3>
+            <button id="doc-chat-close-btn" class="p-2 rounded-full hover:bg-gray-200"><i data-lucide="x"></i></button>
+        </div>
+        <div id="doc-chat-messages" class="flex-grow p-4 overflow-y-auto flex flex-col"></div>
+        <div class="p-4 border-t flex gap-2">
+            <input id="doc-chat-input" class="w-full p-2 border rounded-full text-sm" placeholder="Ask about this document...">
+            <button id="doc-chat-send-btn" class="btn-judicial rounded-full p-2"><i data-lucide="send" class="h-5 w-5"></i></button>
+        </div>
+    </div>
+</div>
+
+<div id="draft-editor-modal" class="modal-overlay" style="z-index: 1200;">
+    <div class="modal-content max-w-full w-full h-full bg-gray-400 rounded-none">
+        <div class="flex justify-between items-center p-2 bg-white border-b flex-shrink-0">
+            <h3 class="text-xl font-semibold flex items-center gap-2 ml-4"><i data-lucide="file-edit" class="text-amber-800"></i>Drafting Pad</h3>
+            <div class="flex items-center gap-4">
+                 <button id="draft-editor-close" class="btn-judicial px-4 py-2 rounded-md flex items-center gap-2"><i data-lucide="arrow-left-circle"></i>Go Back</button>
+            </div>
+        </div>
+        <div class="flex-grow flex flex-col overflow-y-auto p-0 m-0">
+            <textarea id="draft-editor"></textarea>
+        </div>
+    </div>
+</div>
+
+<div id="legal-research-modal" class="modal-overlay">
+    <div class="modal-content max-w-5xl h-[85vh]">
+        <div class="flex justify-between items-center p-4 bg-white border-b">
+            <h3 class="text-xl font-semibold flex items-center gap-2"><i data-lucide="gavel" class="text-amber-800"></i>Legal Research Engine</h3>
+            <div class="flex items-center gap-2">
+                <button id="legal-research-restart-btn" class="btn-judicial px-3 py-1 text-sm rounded-md">Restart</button>
+                <button id="legal-research-close-btn" class="p-2 rounded-full hover:bg-gray-200"><i data-lucide="x"></i></button>
+            </div>
+        </div>
+        <div id="legal-research-results" class="flex-grow p-6 overflow-y-auto"></div>
+        <div class="p-4 border-t flex gap-4 items-center">
+            <input type="search" id="legal-research-input" placeholder="Enter your initial query or a follow-up question..." class="w-full p-2 border rounded-md text-sm">
+            <button id="legal-research-find-btn" class="btn-judicial px-4 py-2 rounded-md">Submit</button>
+        </div>
+    </div>
+</div>
+
+<!-- NEW: AI Insert Choice Modal -->
+<div id="ai-insert-choice-modal" class="modal-overlay" style="z-index: 1400;">
+    <div class="modal-content max-w-md">
+        <div class="flex justify-between items-center p-4 bg-white border-b rounded-t-lg">
+            <h3 class="text-xl font-semibold flex items-center gap-2"><i data-lucide="plus-circle" class="text-amber-800"></i>Choose AI Insert Type</h3>
+            <button id="ai-insert-choice-close-btn" class="p-2 rounded-full hover:bg-gray-200"><i data-lucide="x"></i></button>
+        </div>
+        <div class="p-6 space-y-4">
+            <button id="simple-insert-btn" class="w-full text-left command-btn">
+                <div class="flex items-center gap-3"><i data-lucide="file-plus"></i><span class="font-semibold">Simple Insert</span></div>
+                <p class="text-xs text-gray-500 mt-1">Ask a single question and insert the AI's response directly.</p>
+            </button>
+            <button id="multi-section-insert-btn" class="w-full text-left command-btn">
+                <div class="flex items-center gap-3"><i data-lucide="list-plus"></i><span class="font-semibold">Multi-Section Document Builder</span></div>
+                <p class="text-xs text-gray-500 mt-1">Build a complex document by generating multiple sections from different prompts.</p>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- NEW: Multi-Section Document Builder Modal -->
+<div id="multi-section-modal" class="modal-overlay" style="z-index: 1300;">
+    <div class="modal-content w-full max-w-6xl h-[95vh]">
+        <div class="flex-shrink-0 flex justify-between items-center p-4 bg-white border-b rounded-t-lg">
+            <h3 class="text-xl font-semibold flex items-center gap-2"><i data-lucide="list-plus" class="text-amber-800"></i>Multi-Section Document Builder</h3>
+            <button id="multi-section-close-btn" class="p-2 rounded-full hover:bg-gray-200"><i data-lucide="x"></i></button>
+        </div>
+        <div id="multi-section-container" class="p-4 flex-grow overflow-y-auto bg-gray-100 space-y-4">
+            <!-- Sections will be added here -->
+        </div>
+        <div class="flex-shrink-0 p-3 bg-white border-t rounded-b-lg flex items-center justify-between flex-wrap gap-2">
+             <div class="flex items-center gap-2">
+                <button id="add-section-btn" class="btn-judicial flex items-center gap-2 px-3 py-2 text-sm rounded-md"><i data-lucide="plus"></i>Add Section</button>
+                <p id="multi-section-status" class="text-sm text-gray-600 font-medium ml-4">Ready</p>
+             </div>
+             <div class="flex items-center gap-2">
+                <button id="import-form-btn" class="bg-gray-500 hover:bg-gray-600 text-white flex items-center gap-2 px-3 py-2 text-sm rounded-md"><i data-lucide="upload"></i>Import Form</button>
+                <button id="export-form-btn" class="bg-gray-500 hover:bg-gray-600 text-white flex items-center gap-2 px-3 py-2 text-sm rounded-md"><i data-lucide="download"></i>Export Form</button>
+            </div>
+             <div class="flex items-center gap-2">
+                <button id="process-all-btn" class="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2 px-3 py-2 text-sm rounded-md font-semibold"><i data-lucide="zap"></i>Process All Sections</button>
+                <button id="generate-doc-btn" class="bg-green-600 hover:bg-green-700 text-white flex items-center gap-2 px-3 py-2 text-sm rounded-md font-semibold"><i data-lucide="file-check-2"></i>Generate Final Document</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Template for a single section in the builder -->
+<template id="section-template">
+    <div class="section-item">
+        <button class="delete-section-btn" title="Delete Section"><i data-lucide="x-circle"></i></button>
+        <div class="full-width">
+            <label>Section Heading</label>
+            <input type="text" name="section-heading" placeholder="e.g., Introduction, Factual Matrix, Prayer...">
+        </div>
+        <div>
+            <label>AI Prompt for this section</label>
+            <textarea name="section-prompt" placeholder="e.g., Summarize the plaintiff's primary argument from Doc1.pdf and Doc3.pdf"></textarea>
+        </div>
+        <div>
+            <label>Examples / Style Guidance (Optional)</label>
+            <textarea name="section-examples" placeholder="e.g., Use formal language. Cite document page numbers. Start with 'It is submitted that...'"></textarea>
+        </div>
+        <div class="full-width">
+            <label>Generated Answer</label>
+            <textarea name="section-answer" class="answer-field" readonly placeholder="Click 'Process All Sections' to generate content here..."></textarea>
+        </div>
+    </div>
+</template>
+
+
+<script type="module">
+    // --- Global Libraries ---
+    const { Orama } = window;
+    const jsPDF = window.jspdf;
+    const html2canvas = window.html2canvas;
+    
+    // --- IndexedDB ---
+    const DB_NAME = 'AgenticChatDB_v3'; 
+    const DB_VERSION = 1;
+    let db;
+
+   // --- Global State ---
+    let DOMElements = {};
+    let allDocs = [];
+    let mainChatHistory = [];
+    let oramaDb;
+    let sunEditorInstances = {};
+    let activeEditorInstance = null; // IMPORTANT: To hold context for modals
+    
+    const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
+    let aiProviderApiKey = null;
+    let aiProviderApiUrl = GROQ_API_URL;
+    let selectedModel = null;
+    
+    let tavilyApiKey = null;
+    let editorBackupInterval = null;
+    let legalResearchSession = { history: [], context: '', sourcesHTML: '' };
+    
+    // MODIFIED: Added global state for new agent settings
+    let isOcrEnabled = true;
+    let contextSwitchLimit = 100000;
+    let isDeepScanEnabled = false; // Default off
+    let deepScanChunkSize = 75; // Default value
+    let currentWebMode = 'off';
+
+
+    // --- DATABASE FUNCTIONS ---
+    function initDB() {
+        return new Promise((resolve, reject) => {
+            const request = indexedDB.open(DB_NAME, DB_VERSION);
+            request.onerror = event => reject('IndexedDB error: ' + request.error);
+            request.onsuccess = event => {
+                db = event.target.result;
+                resolve(db);
+            };
+            request.onupgradeneeded = event => {
+                const db = event.target.result;
+                if (!db.objectStoreNames.contains('settings')) {
+                    db.createObjectStore('settings', { keyPath: 'id' });
+                }
+                if (!db.objectStoreNames.contains('documents')) {
+                    const docStore = db.createObjectStore('documents', { keyPath: 'id' });
+                    docStore.createIndex('fileName', 'fileName', { unique: false });
+                }
+                if (!db.objectStoreNames.contains('mainChatHistory')) {
+                    db.createObjectStore('mainChatHistory', { autoIncrement: true });
+                }
+                if (!db.objectStoreNames.contains('draftState')) {
+                    db.createObjectStore('draftState', { keyPath: 'id' });
+                }
+                if (!db.objectStoreNames.contains('editedDocs')) {
+                    db.createObjectStore('editedDocs', { keyPath: 'id' });
+                }
+            };
+        });
+    }
+
+    function saveData(storeName, data) {
+        if (!db) return Promise.reject("DB not initialized.");
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction([storeName], 'readwrite');
+            const store = transaction.objectStore(storeName);
+            const request = store.put(data);
+            request.onsuccess = () => resolve();
+            request.onerror = () => reject(request.error);
+        });
+    }
+
+    function saveChatMessages(messages) {
+        if (!db) return Promise.reject("DB not initialized.");
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction(['mainChatHistory'], 'readwrite');
+            const store = transaction.objectStore('mainChatHistory');
+            messages.forEach(msg => store.add(msg));
+            transaction.oncomplete = () => resolve();
+            transaction.onerror = () => reject(transaction.error);
+        });
+    }
+
+    function loadData(storeName, id) {
+        if (!db) return Promise.reject("DB not initialized.");
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction([storeName], 'readonly');
+            const store = transaction.objectStore(storeName);
+            const request = store.get(id);
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = () => reject(request.error);
+        });
+    }
+    
+    function loadAllData(storeName) {
+        if (!db) return Promise.reject("DB not initialized.");
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction([storeName], 'readonly');
+            const store = transaction.objectStore(storeName);
+            const request = store.getAll();
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = () => reject(request.error);
+        });
+    }
+
+    function clearStore(storeName) {
+        if (!db) return Promise.reject("DB not initialized.");
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction([storeName], 'readwrite');
+            const store = transaction.objectStore(storeName);
+            const request = store.clear();
+            request.onsuccess = () => resolve();
+            request.onerror = () => reject(request.error);
+        });
+    }
+    
+    function deleteData(storeName, id) {
+        if (!db) return Promise.reject("DB not initialized.");
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction([storeName], 'readwrite');
+            const store = transaction.objectStore(storeName);
+            const request = store.delete(id);
+            request.onsuccess = () => resolve();
+            request.onerror = () => reject(request.error);
+        });
+    }
+
+    // --- File Conversion Logic ---
+    async function convertToPdf(doc) {
+        const { fileType, dataURL, fileName } = doc;
+        const pdf = new jsPDF();
+
+        try {
+            if (fileType.includes('officedocument.wordprocessingml.document')) {
+                const arrayBuffer = await fetch(dataURL).then(res => res.arrayBuffer());
+                const htmlResult = await mammoth.convertToHtml({ arrayBuffer });
+                return await convertHtmlToPdf(htmlResult.value, pdf);
+            } 
+            else if (fileType.startsWith('image/')) {
+                return new Promise((resolve, reject) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        const imgWidth = img.width;
+                        const imgHeight = img.height;
+                        const pdfWidth = pdf.internal.pageSize.getWidth();
+                        const pdfHeight = pdf.internal.pageSize.getHeight();
+                        const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / imgHeight);
+                        const w = imgWidth * ratio;
+                        const h = imgHeight * ratio;
+                        pdf.addImage(dataURL, 'JPEG', (pdfWidth - w) / 2, (pdfHeight - h) / 2, w, h);
+                        resolve(pdf.output('datauristring'));
+                    };
+                    img.onerror = reject;
+                    img.src = dataURL;
+                });
+            } 
+            else if (fileType === 'text/html') {
+                const content = await fetch(dataURL).then(res => res.text());
+                return await convertHtmlToPdf(content, pdf);
+            } 
+            else if (fileType === 'text/plain') {
+                const text = await fetch(dataURL).then(res => res.text());
+                const lines = pdf.splitTextToSize(text, pdf.internal.pageSize.getWidth() - 20);
+                pdf.text(lines, 10, 10);
+                return pdf.output('datauristring');
+            }
+            return dataURL;
+        } catch (error) {
+            console.error(`Failed to convert ${fileName} to PDF:`, error);
+            throw new Error(`Failed to convert ${fileName} to PDF: ${error.message}`);
+        }
+    }
+
+    async function convertHtmlToPdf(htmlContent, pdfInstance) {
+        const container = document.createElement('div');
+        container.style.position = 'fixed';
+        container.style.top = '-9999px';
+        container.style.left = '-9999px';
+        container.style.width = '800px';
+        container.style.background = '#fff';
+        container.style.padding = '20px';
+        container.innerHTML = htmlContent;
+        document.body.appendChild(container);
+
+        const canvas = await html2canvas(container, {
+            scale: 2, useCORS: true
+        });
+        document.body.removeChild(container);
+        
+        const imgData = canvas.toDataURL('image/png');
+        const imgWidth = canvas.width;
+        const imgHeight = canvas.height;
+        
+        const pdfWidth = pdfInstance.internal.pageSize.getWidth();
+        const pdfHeight = (imgHeight * pdfWidth) / imgWidth;
+        
+        let heightLeft = imgHeight;
+        let position = 0;
+        
+        pdfInstance.addImage(imgData, 'PNG', 0, position, pdfWidth, pdfHeight);
+        heightLeft -= pdfInstance.internal.pageSize.getHeight();
+        
+        while (heightLeft > 0) {
+            position = heightLeft - imgHeight;
+            pdfInstance.addPage();
+            pdfInstance.addImage(imgData, 'PNG', 0, position, pdfWidth, pdfHeight);
+            heightLeft -= pdfInstance.internal.pageSize.getHeight();
+        }
+        
+        return pdfInstance.output('datauristring');
+    }
+
+    // --- AI "Fetch Models" Logic ---
+    async function handleFetchModels(isSilent = false) {
+        const { modelSelectInput, modelFetchStatus } = DOMElements.settingsModal;
+        if (!aiProviderApiKey || !aiProviderApiUrl) {
+            modelFetchStatus.textContent = "API URL and Key must be set first.";
+            modelFetchStatus.className = "text-xs text-red-500 mt-1";
+            return;
+        }
+
+        let modelsUrl = aiProviderApiUrl.replace('chat/completions', 'models');
+        if (modelsUrl === aiProviderApiUrl) {
+            modelsUrl = aiProviderApiUrl.replace('v1', 'v1/models');
+        }
+
+        modelFetchStatus.textContent = "Fetching models...";
+        modelFetchStatus.className = "text-xs text-gray-500 mt-1";
+        modelSelectInput.innerHTML = '<option value="">Fetching...</option>';
+
+        try {
+            const response = await fetch(modelsUrl, {
+                headers: { 'Authorization': `Bearer ${aiProviderApiKey}` }
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`Failed to fetch: ${response.status} ${response.statusText}. ${errorText}`);
+            }
+
+            const result = await response.json();
+            const models = result.data || result; 
+
+            if (!Array.isArray(models) || models.length === 0) {
+                throw new Error("API returned an invalid or empty model list.");
+            }
+
+            modelSelectInput.innerHTML = ''; 
+            models.forEach(model => {
+                if (model.id) {
+                    const option = document.createElement('option');
+                    option.value = model.id;
+                    option.textContent = model.id;
+                    modelSelectInput.appendChild(option);
+                }
+            });
+
+            if (selectedModel) {
+                modelSelectInput.value = selectedModel;
+            } else if (modelSelectInput.options.length > 0) {
+                selectedModel = modelSelectInput.options[0].value;
+            }
+
+            modelFetchStatus.textContent = `Successfully fetched ${models.length} models. Current: ${selectedModel}`;
+            modelFetchStatus.className = "text-xs text-green-600 mt-1";
+            if (!isSilent) appendChatMessage(`Successfully fetched ${models.length} models.`, 'system');
+
+        } catch (err) {
+            console.error("Error fetching models:", err);
+            modelFetchStatus.textContent = `Error: ${err.message}`;
+            modelFetchStatus.className = "text-xs text-red-500 mt-1";
+            modelSelectInput.innerHTML = '<option value="">--- Fetch failed ---</option>';
+            if (!isSilent) appendChatMessage(`Error fetching models: ${err.message}`, 'system');
+        }
+    }
+    
+    // --- UI/HELPER FUNCTIONS ---
+    function getRecentMessages(messages, messageLimit = 100) {
+        return messages.slice(Math.max(messages.length - messageLimit, 0));
+    }
+
+    function handleCopyMessage(content, isHtml, buttonElement) {
+        const listener = (e) => {
+            if (isHtml) {
+                e.clipboardData.setData('text/html', content);
+                e.clipboardData.setData('text/plain', new DOMParser().parseFromString(content, 'text/html').body.textContent || '');
+            } else {
+                e.clipboardData.setData('text/plain', content);
+            }
+            e.preventDefault();
+        };
+        document.addEventListener('copy', listener);
+        document.execCommand('copy');
+        document.removeEventListener('copy', listener);
+        const originalIcon = buttonElement.innerHTML;
+        buttonElement.innerHTML = `<i data-lucide="check" class="h-4 w-4"></i>`;
+        lucide.createIcons();
+        setTimeout(() => {
+            buttonElement.innerHTML = originalIcon;
+            lucide.createIcons();
+        }, 2000);
+    }
+
+    function appendChatMessage(message, type, options = {}) {
+        const wrapper = document.createElement('div');
+        const messagesContainer = DOMElements.chat.messages;
+        if (type === 'system') {
+            wrapper.className = 'flex justify-center my-2';
+            wrapper.innerHTML = `<div class="bg-yellow-100 text-yellow-800 rounded-lg py-1 px-3 text-xs shadow-sm">${message}</div>`;
+        } else {
+            const role = type === 'user' ? 'User' : 'AI'; 
+            wrapper.className = `group relative flex items-start gap-2.5 my-2 max-w-4xl mx-auto w-full ${type === 'user' ? 'justify-end' : 'justify-start'}`;
+            const icon = `<div class="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${type === 'user' ? 'bg-amber-800' : 'bg-gray-700'} text-white font-bold">${role.charAt(0)}</div>`;
+            
+            const thoughtsPanel = type === 'ai' ? `
+                <div class="thoughts-panel">
+                    <details>
+                        <summary>Show Thoughts</summary>
+                        <div class="thoughts-content">Initializing...</div>
+                    </details>
+                </div>` : '';
+
+            const messageBody = `
+                <div class="message-bubble-container flex flex-col w-full max-w-2xl leading-1.5 p-3 border-gray-200 ${type === 'user' ? 'bg-amber-100 rounded-s-xl rounded-ee-xl' : 'bg-white rounded-e-xl rounded-es-xl shadow-md'}">
+                    <button class="copy-btn"><i data-lucide="copy" class="h-4 w-4"></i></button>
+                    <div class="ai-message-content text-sm font-normal text-gray-800"></div>
+                    ${thoughtsPanel}
+                </div>`;
+
+            wrapper.innerHTML = type === 'user' ? messageBody.replace('max-w-2xl', 'max-w-lg') + icon : icon + messageBody;
+            const contentDiv = wrapper.querySelector('.ai-message-content');
+            if (options.isHtml) {
+                contentDiv.innerHTML = marked.parse(message);
+            } else {
+                contentDiv.textContent = message;
+            }
+            
+            const copyBtn = wrapper.querySelector('.copy-btn');
+            if (copyBtn) {
+                const contentToCopy = options.isHtml ? marked.parse(message) : message;
+                copyBtn.addEventListener('click', () => handleCopyMessage(contentToCopy, options.isHtml, copyBtn));
+            }
+        }
+        messagesContainer.appendChild(wrapper);
+        lucide.createIcons();
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        return wrapper;
+    }
+    
+    // --- MAIN INITIALIZATION & EVENT LISTENERS ---
+    window.addEventListener('load', async () => {
+        try {
+            initDOMElements();
+            setLoadingText('Initializing...');
+            await initApp();
+        } catch (error) {
+            console.error("Fatal error during page initialization:", error);
+            document.getElementById('loading-overlay').innerHTML = `<p class="text-red-500 font-semibold p-4 text-center">A critical error occurred. See console (F12).</p>`;
+        } finally {
+            const loadingOverlay = document.getElementById('loading-overlay');
+            if (loadingOverlay) {
+                loadingOverlay.style.opacity = '0';
+                setTimeout(() => { loadingOverlay.style.display = 'none'; }, 300);
+            }
+        }
+    });
+    
+    function setLoadingText(text) { document.getElementById('loading-text').textContent = text; }
+    
+    // MODIFIED: Added new DOM elements for agent settings
+    function initDOMElements() {
+        DOMElements = {
+            commandCenter: { modal: document.getElementById('command-center-modal'), openBtn: document.getElementById('command-center-btn'), closeBtn: document.getElementById('command-center-close'), },
+            settingsModal: { 
+                modal: document.getElementById('settings-modal'), 
+                closeBtn: document.getElementById('settings-modal-close'), 
+                apiKeyInput: document.getElementById('ai-provider-api-key-input'), 
+                tavilyApiKeyInput: document.getElementById('tavily-api-key-input'), 
+                saveTavilyApiKeyBtn: document.getElementById('save-tavily-api-key-btn'), 
+                resetDataBtn: document.getElementById('reset-app-data-btn'),
+                apiUrlInput: document.getElementById('api-url-input'),
+                modelSelectInput: document.getElementById('model-select-input'),
+                fetchModelsBtn: document.getElementById('fetch-models-btn'),
+                modelFetchStatus: document.getElementById('model-fetch-status'),
+                saveAiSettingsBtn: document.getElementById('save-ai-settings-btn'),
+                ocrToggle: document.getElementById('ocr-toggle'),
+                contextSwitchLimitInput: document.getElementById('context-switch-limit-input'),
+                deepScanToggle: document.getElementById('deep-scan-toggle'),
+                deepScanChunkInput: document.getElementById('deep-scan-chunk-input'),
+                saveAgentSettingsBtn: document.getElementById('save-agent-settings-btn'),
+            },
+            library: { modal: document.getElementById('library-modal'), closeBtn: document.getElementById('library-modal-close'), searchInput: document.getElementById('library-search-input'), documentList: document.getElementById('library-document-list'), viewerHeader: document.getElementById('library-viewer-header'), viewerTitle: document.getElementById('library-viewer-title'), viewerCopyBtn: document.getElementById('library-viewer-copy-btn'), viewerChatBtn: document.getElementById('library-viewer-chat-btn'), viewerEditBtn: document.getElementById('library-viewer-edit-btn'), viewerDownloadDocBtn: document.getElementById('library-viewer-download-doc-btn'), docViewer: document.getElementById('library-doc-viewer'), placeholderText: document.getElementById('library-placeholder-text') },
+            editedDocs: {
+                modal: document.getElementById('edited-docs-modal'),
+                closeBtn: document.getElementById('edited-docs-modal-close'),
+                list: document.getElementById('edited-docs-list'),
+                viewerHeader: document.getElementById('edited-docs-viewer-header'),
+                viewerTitle: document.getElementById('edited-docs-viewer-title'),
+                viewer: document.getElementById('edited-docs-viewer'),
+                placeholder: document.getElementById('edited-docs-placeholder-text'),
+                reopenBtn: document.getElementById('edited-docs-reopen-btn'),
+                downloadBtn: document.getElementById('edited-docs-download-html-btn'),
+                deleteBtn: document.getElementById('edited-docs-delete-btn'),
+            },
+            searchModal: { modal: document.getElementById('search-modal'), closeBtn: document.getElementById('search-modal-close'), input: document.getElementById('search-modal-input'), findBtn: document.getElementById('search-modal-find-btn'), resultsSummary: document.getElementById('search-results-summary'), resultsList: document.getElementById('search-results-list'), interactionPane: document.getElementById('search-interaction-pane'), },
+            docChatModal: { modal: document.getElementById('doc-chat-modal'), title: document.getElementById('doc-chat-title'), closeBtn: document.getElementById('doc-chat-close-btn'), messages: document.getElementById('doc-chat-messages'), input: document.getElementById('doc-chat-input'), sendBtn: document.getElementById('doc-chat-send-btn'), },
+            draftEditor: { modal: document.getElementById('draft-editor-modal'), closeBtn: document.getElementById('draft-editor-close'), editor: document.getElementById('draft-editor'), },
+            legalResearch: { modal: document.getElementById('legal-research-modal'), closeBtn: document.getElementById('legal-research-close-btn'), restartBtn: document.getElementById('legal-research-restart-btn'), input: document.getElementById('legal-research-input'), findBtn: document.getElementById('legal-research-find-btn'), results: document.getElementById('legal-research-results'), },
+            chat: { messages: document.getElementById('chat-messages'), textInput: document.getElementById('chat-input'), sendBtn: document.getElementById('chat-send'), fileInput: document.getElementById('chat-file-input'), clearBtn: document.getElementById('clear-chat-btn-header'), },
+            header: { settingsBtn: document.getElementById('settings-btn-header'), },
+            webMode: {
+                btn: document.getElementById('web-mode-btn'),
+                dropdown: document.getElementById('web-mode-dropdown'),
+                options: document.querySelectorAll('.web-mode-option')
+            },
+            aiInsertChoiceModal: {
+                modal: document.getElementById('ai-insert-choice-modal'),
+                closeBtn: document.getElementById('ai-insert-choice-close-btn'),
+                simpleBtn: document.getElementById('simple-insert-btn'),
+                multiBtn: document.getElementById('multi-section-insert-btn'),
+            },
+            multiSectionModal: {
+                modal: document.getElementById('multi-section-modal'),
+                closeBtn: document.getElementById('multi-section-close-btn'),
+                container: document.getElementById('multi-section-container'),
+                status: document.getElementById('multi-section-status'),
+                addBtn: document.getElementById('add-section-btn'),
+                processBtn: document.getElementById('process-all-btn'),
+                generateBtn: document.getElementById('generate-doc-btn'),
+                importBtn: document.getElementById('import-form-btn'),
+                exportBtn: document.getElementById('export-form-btn'),
+            }
+        };
+    }
+
+    async function initApp() {
+        await initDB();
+        setLoadingText('Loading saved data...');
+        await loadStateFromDB();
+        setLoadingText('Creating search database...');
+        oramaDb = await Orama.create({ schema: { 
+            id: 'string', docId: 'string', fileName: 'string', 
+            pageNumber: 'number', pageContent: 'string' 
+        } });
+        await reindexAllData();
+        lucide.createIcons();
+        setupEventListeners();
+        if (mainChatHistory.length === 0) {
+            appendChatMessage("Welcome! Ask a question or upload a document to get started.", 'system');
+        } else {
+            renderChatHistory();
+        }
+        if (aiProviderApiUrl && aiProviderApiKey) {
+            handleFetchModels(true); 
+        }
+    }
+    
+    function setupEventListeners() {
+        DOMElements.commandCenter.openBtn.addEventListener('click', () => openModal(DOMElements.commandCenter.modal));
+        DOMElements.commandCenter.closeBtn.addEventListener('click', () => closeModal(DOMElements.commandCenter.modal));
+        DOMElements.chat.sendBtn.addEventListener('click', handleChatSend);
+        DOMElements.chat.textInput.addEventListener('keypress', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleChatSend(); }});
+        DOMElements.chat.fileInput.addEventListener('change', handleFileUpload);
+        DOMElements.chat.clearBtn.addEventListener('click', () => handleClearChatHistory(true));
+        
+        DOMElements.library.closeBtn.addEventListener('click', () => closeModal(DOMElements.library.modal));
+        DOMElements.library.searchInput.addEventListener('input', (e) => renderLibraryDocs(e.target.value));
+        DOMElements.library.viewerCopyBtn.addEventListener('click', handleCopyContent);
+        DOMElements.library.viewerChatBtn.addEventListener('click', () => { const docId = DOMElements.library.viewerChatBtn.dataset.docId; if (docId) openDocChatModal(docId); });
+
+        const { btn: webModeBtn, dropdown: webModeDropdown, options: webModeOptions } = DOMElements.webMode;
+
+        webModeBtn.addEventListener('click', () => {
+            webModeDropdown.style.display = webModeDropdown.style.display === 'none' ? 'block' : 'none';
+        });
+
+        webModeOptions.forEach(option => {
+            option.addEventListener('click', (e) => {
+                e.preventDefault();
+                currentWebMode = e.currentTarget.dataset.mode;
+                
+                let webModeIcon = webModeBtn.querySelector('#web-mode-icon');
+                
+                let newIcon = 'globe';
+                let newColor = 'text-gray-400';
+                if (currentWebMode === 'websearch') {
+                    newIcon = 'search';
+                    newColor = 'text-blue-500';
+                } else if (currentWebMode === 'legalresearch') {
+                    newIcon = 'gavel';
+                    newColor = 'text-amber-800';
+                }
+                
+                if(webModeIcon) {
+                   webModeIcon.outerHTML = `<i id="web-mode-icon" data-lucide="${newIcon}" class="h-5 w-5 ${newColor}"></i>`;
+                }
+                lucide.createIcons();
+                webModeDropdown.style.display = 'none';
+                
+                appendChatMessage(`Web mode set to: ${currentWebMode.toUpperCase()}`, 'system');
+            });
+        });
+
+        document.addEventListener('click', (e) => {
+            if (webModeBtn && !webModeBtn.contains(e.target) && !webModeDropdown.contains(e.target)) {
+                webModeDropdown.style.display = 'none';
+            }
+        });
+
+        DOMElements.library.viewerEditBtn.addEventListener('click', () => { const docId = DOMElements.library.viewerEditBtn.dataset.docId; if (docId) handleReopenDraft(docId); });
+        DOMElements.library.viewerDownloadDocBtn.addEventListener('click', handleDownloadDoc);
+        DOMElements.library.documentList.addEventListener('click', async (e) => {
+            const viewBtn = e.target.closest('.document-list-item');
+            if (viewBtn) {
+                const docId = viewBtn.dataset.id;
+                const doc = allDocs.find(d => d.id === docId);
+                if (doc) { DOMElements.library.documentList.querySelector('.active')?.classList.remove('active'); viewBtn.classList.add('active'); viewDocument(doc); }
+            }
+        });
+        
+        document.getElementById('cmd-ediscovery').addEventListener('click', () => openLibrary());
+        document.getElementById('cmd-full-text-search').addEventListener('click', () => { openModal(DOMElements.searchModal.modal); closeModal(DOMElements.commandCenter.modal); });
+        document.getElementById('cmd-draft').addEventListener('click', () => openDraftEditor());
+        document.getElementById('cmd-edited-drafts').addEventListener('click', () => openEditedDocsModal());
+        document.getElementById('cmd-settings').addEventListener('click', () => openSettingsModal());
+        document.getElementById('cmd-export-data').addEventListener('click', handleExportData);
+        document.getElementById('cmd-import-data').addEventListener('click', handleImportData);
+        document.getElementById('cmd-clear-chat').addEventListener('click', () => handleClearChatHistory(true));
+        DOMElements.header.settingsBtn.addEventListener('click', () => openSettingsModal());
+        
+        // --- Settings Modal Listeners ---
+        const sm = DOMElements.settingsModal;
+        sm.closeBtn.addEventListener('click', () => closeModal(sm.modal));
+        sm.saveTavilyApiKeyBtn.addEventListener('click', () => saveSettings('tavily'));
+        sm.resetDataBtn.addEventListener('click', handleResetData);
+        sm.fetchModelsBtn.addEventListener('click', () => handleFetchModels(false));
+        sm.saveAiSettingsBtn.addEventListener('click', () => saveSettings('ai'));
+        sm.saveAgentSettingsBtn.addEventListener('click', () => saveSettings('agent'));
+
+        const ed = DOMElements.editedDocs;
+        ed.closeBtn.addEventListener('click', () => closeModal(ed.modal));
+        ed.reopenBtn.addEventListener('click', () => handleReopenDraft(ed.reopenBtn.dataset.docId));
+        ed.downloadBtn.addEventListener('click', () => handleDownloadHtml(ed.downloadBtn.dataset.docId));
+        ed.deleteBtn.addEventListener('click', () => handleDeleteHtmlDraft(ed.deleteBtn.dataset.docId));
+        ed.list.addEventListener('click', async (e) => {
+             const item = e.target.closest('.document-list-item');
+             if (item) {
+                 const docId = item.dataset.id;
+                 const doc = await loadData('editedDocs', docId);
+                 if (doc) {
+                     ed.list.querySelector('.active')?.classList.remove('active');
+                     item.classList.add('active');
+                     viewEditedDoc(doc);
+                 }
+             }
+        });
+
+        DOMElements.searchModal.closeBtn.addEventListener('click', () => closeModal(DOMElements.searchModal.modal));
+        DOMElements.searchModal.findBtn.addEventListener('click', handleFullSearch);
+        DOMElements.searchModal.input.addEventListener('keypress', e => { if (e.key === 'Enter') handleFullSearch(); });
+        DOMElements.docChatModal.closeBtn.addEventListener('click', () => closeModal(DOMElements.docChatModal.modal));
+        DOMElements.draftEditor.closeBtn.addEventListener('click', handleDiscardDraft);
+        
+        const aicm = DOMElements.aiInsertChoiceModal;
+        aicm.closeBtn.addEventListener('click', () => closeModal(aicm.modal));
+        aicm.simpleBtn.addEventListener('click', handleSimpleAIInsert);
+        aicm.multiBtn.addEventListener('click', () => {
+            closeModal(aicm.modal);
+            openMultiSectionBuilder();
+        });
+
+        const msm = DOMElements.multiSectionModal;
+        msm.closeBtn.addEventListener('click', () => closeModal(msm.modal));
+        msm.addBtn.addEventListener('click', addMultiSection);
+        msm.processBtn.addEventListener('click', processAllMultiSections);
+        msm.generateBtn.addEventListener('click', generateMultiSectionDocument);
+        msm.exportBtn.addEventListener('click', exportMultiSectionForm);
+        
+        msm.importBtn.addEventListener('click', () => {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json,application/json';
+            input.onchange = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    try {
+                        const data = JSON.parse(event.target.result);
+                        if (!Array.isArray(data)) throw new Error('Invalid form file. Expected an array of sections.');
+                        
+                        const container = DOMElements.multiSectionModal.container;
+                        container.innerHTML = ''; // Clear existing sections
+                        data.forEach(item => addMultiSection(item));
+                        DOMElements.multiSectionModal.status.textContent = "Form imported successfully.";
+                    } catch (error) {
+                        console.error('Form import failed:', error);
+                        alert(`Form import failed: ${error.message}`);
+                    }
+                };
+                reader.readAsText(file);
+            };
+            input.click();
+        });
+        
+        if (DOMElements.legalResearch.closeBtn) {
+            DOMElements.legalResearch.closeBtn.addEventListener('click', () => { closeModal(DOMElements.legalResearch.modal); saveData('draftState', { id: 'legalResearchSession', ...legalResearchSession }); });
+            DOMElements.legalResearch.restartBtn.addEventListener('click', handleLegalResearchRestart);
+        }
+        
+        document.addEventListener('keydown', e => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+                e.preventDefault();
+                openModal(DOMElements.commandCenter.modal);
+            }
+        });
+    }
+
+    // --- MODAL & VIEW MANAGEMENT ---
+    function openModal(modal) {
+        if (!modal) return;
+        modal.style.display = 'flex';
+        setTimeout(() => modal.classList.add('visible'), 10);
+    }
+    
+    function closeModal(modal) {
+        if (!modal) return;
+        modal.classList.remove('visible');
+        setTimeout(() => modal.style.display = 'none', 300);
+    }
+
+    // MODIFIED: Update openSettingsModal to handle new agent settings
+    function openSettingsModal() {
+        const sm = DOMElements.settingsModal;
+        sm.apiKeyInput.value = aiProviderApiKey || '';
+        sm.apiUrlInput.value = aiProviderApiUrl || '';
+        sm.tavilyApiKeyInput.value = tavilyApiKey || '';
+        sm.ocrToggle.checked = isOcrEnabled;
+        sm.contextSwitchLimitInput.value = contextSwitchLimit;
+        sm.deepScanToggle.checked = isDeepScanEnabled;
+        sm.deepScanChunkInput.value = deepScanChunkSize;
+        
+        openModal(sm.modal);
+        if (DOMElements.commandCenter.modal.style.display === 'flex') {
+            closeModal(DOMElements.commandCenter.modal);
+        }
+    }
+
+    function openLibrary() {
+        renderLibraryDocs('');
+        openModal(DOMElements.library.modal);
+        if (DOMElements.commandCenter.modal.style.display === 'flex') {
+            closeModal(DOMElements.commandCenter.modal);
+        }
+    }
+    
+    async function openDocChatModal(docId) {
+        const doc = allDocs.find(d => d.id === docId); if (!doc) return;
+        const modal = DOMElements.docChatModal; 
+        modal.title.textContent = `Chat with: ${doc.fileName}`; 
+        modal.messages.innerHTML = ''; 
+        modal.input.value = '';
+        
+        (doc.chatHistory || []).forEach(msg => {
+            const displayType = msg.role === 'assistant' ? 'ai' : msg.role; const isHtml = msg.role === 'assistant';
+            const content = isHtml ? marked.parse(msg.content) : msg.content; appendDocChatMessage(content, displayType, { isHtml });
+        });
+
+        const handleSend = async () => {
+            const userInput = modal.input.value.trim();
+            if (!userInput) return;
+
+            appendDocChatMessage(userInput, 'user');
+            if (!doc.chatHistory) doc.chatHistory = [];
+            doc.chatHistory.push({ role: 'user', content: userInput });
+            modal.input.value = '';
+            
+            const typingIndicator = appendDocChatMessage('...', 'ai', { isHtml: true });
+
+            try {
+                const fullDocText = doc.pageSnippets.map(s => `[Page ${s.page}]\n${s.content}`).join('\n\n');
+                
+                let retrievedContext = `You are an AI assistant. Answer based *only* on the following **full document text** and our conversation history.
+    
+                DOCUMENT: ${doc.fileName}
+    
+                --- FULL DOCUMENT TEXT ---
+                ${fullDocText}
+                --- END OF DOCUMENT ---
+                `;
+                
+                const systemMessage = { role: 'system', content: retrievedContext };
+                const recentChatHistory = getRecentMessages(doc.chatHistory.map(m => ({ role: m.role, content: m.content })), 10);
+                const messagesPayload = [systemMessage, ...recentChatHistory];
+                
+                const aiResponse = await AI_getResponse(messagesPayload);
+                typingIndicator.remove();
+                
+                doc.chatHistory.push({ role: 'assistant', content: aiResponse });
+                const formattedHtml = marked.parse(aiResponse);
+                appendDocChatMessage(formattedHtml, 'ai', { isHtml: true });
+                
+                await saveData('documents', doc);
+
+            } catch (err) {
+                if (doc.chatHistory.length > 0 && doc.chatHistory[doc.chatHistory.length-1].role === 'user') {
+                    doc.chatHistory.pop(); 
+                }
+                typingIndicator.innerHTML = `<p style="color: red;">Error: ${err.message}</p>`;
+            }
+        };
+
+        const newSendBtn = modal.sendBtn.cloneNode(true); modal.sendBtn.parentNode.replaceChild(newSendBtn, modal.sendBtn); DOMElements.docChatModal.sendBtn = newSendBtn;
+        const newInput = modal.input.cloneNode(true); modal.input.parentNode.replaceChild(newInput, modal.input); DOMElements.docChatModal.input = newInput;
+        newSendBtn.addEventListener('click', handleSend); newInput.addEventListener('keypress', e => { if (e.key === 'Enter') handleSend(); });
+        
+        openModal(modal);
+    }
+    
+    // --- DRAFTING & EDITOR FUNCTIONS ---
+    function showEditorStatusUpdate(message) {
+        const overlay = document.getElementById('editor-status-overlay');
+        const textElement = document.getElementById('editor-status-text');
+        if (overlay && textElement) {
+            textElement.textContent = message;
+            overlay.style.display = 'block';
+        }
+    }
+    function hideEditorStatusUpdate() {
+        const overlay = document.getElementById('editor-status-overlay');
+        if (overlay) {
+            overlay.style.display = 'none';
+        }
+    }
+
+    async function openDraftEditor(docToEdit = null) {
+        if (DOMElements.commandCenter.modal.style.display === 'flex') closeModal(DOMElements.commandCenter.modal);
+        if (DOMElements.library.modal.style.display === 'flex') closeModal(DOMElements.library.modal);
+        if (DOMElements.editedDocs.modal.style.display === 'flex') closeModal(DOMElements.editedDocs.modal);
+
+        openModal(DOMElements.draftEditor.modal);
+        
+        if (docToEdit) {
+            DOMElements.draftEditor.modal.dataset.editingDocId = docToEdit.id;
+        } else {
+             delete DOMElements.draftEditor.modal.dataset.editingDocId;
+        }
+
+        if (sunEditorInstances['draft-editor']) {
+            sunEditorInstances['draft-editor'].destroy();
+        }
+        
+        const customPlugins = {
+            uploadDocument: {
+                name: 'uploadDocument', display: 'command', title: 'Upload Document to Edit',
+                innerHTML: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>',
+                add: function (core, targetElement) {},
+                action: async function() {
+                    const core = this;
+                    const input = document.createElement('input');
+                    input.type = 'file';
+                    input.accept = '.html,.txt,.docx';
+                    input.onchange = async e => {
+                        const file = e.target.files[0];
+                        if (!file) return;
+                        showEditorStatusUpdate("Processing document...");
+                        try {
+                            const doc = { fileType: file.type };
+                            doc.dataURL = await new Promise((resolve, reject) => {
+                                const reader = new FileReader();
+                                reader.onload = e => resolve(e.target.result);
+                                reader.onerror = e => reject(e);
+                                reader.readAsDataURL(file);
+                            });
+                            if (file.type.includes('officedocument.wordprocessingml.document')) {
+                                const arrayBuffer = await fetch(doc.dataURL).then(res => res.arrayBuffer());
+                                const htmlResult = await mammoth.convertToHtml({ arrayBuffer });
+                                doc.htmlContent = htmlResult.value;
+                            } else {
+                                doc.htmlContent = await fetch(doc.dataURL).then(res => res.text());
+                            }
+                            setTimeout(() => { core.setContents(doc.htmlContent || ''); }, 100);
+                        } catch(err) {
+                            alert('Failed to load document: ' + err.message);
+                            console.error(err);
+                        } finally {
+                            hideEditorStatusUpdate();
+                        }
+                    };
+                    input.click();
+                }
+            },
+            aiRewrite: { name: 'aiRewrite', display: 'command', title: 'AI Rewrite Selected Text', innerHTML: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>',
+                add: function (core, targetElement) { targetElement.classList.add('se-btn-ai-custom'); },
+                action: async function () {
+                    const core = this; 
+                    const savedRange = core.getRange(); 
+                    const selectedText = savedRange.toString().trim(); 
+                    if (!selectedText) { 
+                        alert('Please select some text to rewrite first.'); 
+                        return; 
+                    }
+                    const userPrompt = prompt( `Selected: "${selectedText.substring(0, 100)}${selectedText.length > 100 ? '...' : ''}"\n\nHow should I rewrite this?`, "Make it more professional"); 
+                    if (!userPrompt || !userPrompt.trim()) return;
+                    
+                    showEditorStatusUpdate("Starting AI rewrite...");
+                    
+                    try {
+                        const fullQuery = `Rewrite the following text based on the provided instruction. Context from my uploaded documents may be used for accuracy. Text to rewrite: "${selectedText}" \n\nInstruction: "${userPrompt}"`;
+                        const editorContext = core.getContents(true);
+                        const rewrittenText = await runAgenticWorkflow(fullQuery, (msg) => showEditorStatusUpdate(msg), editorContext);
+                        
+                        const finalHtml = marked.parse(rewrittenText);
+
+                        core.setRange(savedRange.startContainer, savedRange.startOffset, savedRange.endContainer, savedRange.endOffset);
+                        core.functions.insertHTML(finalHtml, true);
+                        core.history.push(false);
+                    } catch (err) { 
+                        console.error("Rewrite failed:", err); 
+                        alert("Rewrite request failed: " + err.message); 
+                    } finally { 
+                        hideEditorStatusUpdate();
+                    }
+                }
+            },
+            insertFromAI: { name: 'insertFromAI', display: 'command', title: 'Insert AI Content', innerHTML: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg>',
+                add: function (core, targetElement) { targetElement.classList.add('se-btn-ai-custom'); },
+                action: function() {
+                    activeEditorInstance = this; // Capture the editor instance
+                    openModal(DOMElements.aiInsertChoiceModal.modal);
+                }
+            },
+            saveAndGoBack: { name: 'saveAndGoBack', display: 'command', title: 'Save & Go Back', innerHTML: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>', 
+                add: function (core, targetElement) {},
+                action: handleSaveDraft 
+            }
+        };
+
+        const editor = SUNEDITOR.create('draft-editor', { 
+            plugins: [...Object.values(SUNEDITOR.plugins || {}), ...Object.values(customPlugins)], 
+            font: ['Arial', 'Times New Roman', 'Palatino', 'Verdana', 'Georgia'],
+            buttonList: [
+                ['undo', 'redo'],
+                ['saveAndGoBack', 'uploadDocument'],
+                ['font', 'fontSize', 'formatBlock'],
+                ['paragraphStyle', 'blockquote'],
+                ['bold', 'underline', 'italic', 'strike', 'subscript', 'superscript'],
+                ['fontColor', 'hiliteColor', 'textStyle'],
+                ['removeFormat'],
+                ['outdent', 'indent'],
+                ['align', 'horizontalRule', 'list', 'lineHeight'],
+                ['table', 'link', 'image', 'video'],
+                ['fullScreen', 'showBlocks', 'codeView'],
+                ['preview', 'print', 'template'],
+                '/', 
+                ['aiRewrite', 'insertFromAI']
+            ], 
+            height: '100%',
+            onload: function (core) { this.core.toggleFullScreen(); lucide.createIcons(); applyEditorPageStyles(this); }
+        });
+        sunEditorInstances['draft-editor'] = editor;
+        
+        const draftData = await loadData('draftState', 'activeDraft');
+        let initialContent = docToEdit ? docToEdit.htmlContent || '' : '';
+        if (draftData && draftData.content) {
+            if (confirm("It looks like you have an unsaved session. Would you like to restore it?")) {
+                initialContent = draftData.content;
+            }
+        }
+        
+        setTimeout(() => { if (editor && editor.core) { editor.setContents(initialContent); } }, 100);
+
+        if (editorBackupInterval) clearInterval(editorBackupInterval);
+        editorBackupInterval = setInterval(() => {
+            if (sunEditorInstances['draft-editor']) {
+                const content = sunEditorInstances['draft-editor'].getContents(true);
+                if (content && content !== '<p><br></p>') {
+                    saveData('draftState', { id: 'activeDraft', content });
+                }
+            }
+        }, 5000);
+    }
+
+    function applyEditorPageStyles(editorInstance) {
+        if (!editorInstance) return;
+        const style = document.createElement('style');
+        style.innerHTML = `
+            body { 
+                background-color: #f0f0f0; margin: 0; padding: 1rem; overflow-y: hidden;
+            }
+            .se-wrapper-inner {
+                transition: all 0.3s ease-in-out; font-family: 'Times New Roman', Times, serif; 
+                line-height: 1.8; width: 21cm; min-height: 29.7cm; padding: 1in; 
+                margin: 20px auto; background-color: white; 
+                box-shadow: 0 0 10px rgba(0,0,0,0.15); box-sizing: border-box;
+            }
+        `;
+        const iframe = editorInstance.core.context.element.wysiwygFrame;
+        if (iframe && iframe.contentDocument) { 
+            iframe.contentDocument.head.appendChild(style); 
+        } else { 
+            setTimeout(() => applyEditorPageStyles(editorInstance), 100); 
+        }
+    }   
+    
+    // --- CORE AI & API FUNCTIONS ---
+    async function AI_getResponse(messages, temperature=0.5) {
+        if (!aiProviderApiKey) throw new Error("AI Provider API Key not set. Please set it in Settings.");
+        if (!aiProviderApiUrl) throw new Error("AI Provider API URL not set. Please set it in Settings.");
+        if (!selectedModel) throw new Error("No AI Model selected. Please fetch and select one in Settings.");
+
+        const finalApiMessages = messages.map(msg => ({
+             role: msg.role === 'assistant' ? 'model' : msg.role, 
+             parts: [{ text: msg.content }]
+        })).filter(msg => msg.role === 'system' || msg.role === 'user' || msg.role === 'model');
+        
+        const systemInstruction = finalApiMessages.find(msg => msg.role === 'system');
+        const contents = finalApiMessages.filter(msg => msg.role !== 'system');
+
+        const payload = { model: selectedModel, contents: contents, temperature: temperature };
+        if (systemInstruction) {
+            payload.systemInstruction = { role: "system", parts: systemInstruction.parts };
+        }
+
+        if (aiProviderApiUrl.includes('openai') || aiProviderApiUrl.includes('groq')) {
+             payload.messages = messages.map(msg => ({
+                role: msg.role === 'model' ? 'assistant' : msg.role,
+                content: msg.content
+             })).filter(msg => msg.role !== 'system');
+             if (systemInstruction) {
+                payload.messages.unshift({ role: 'system', content: systemInstruction.parts[0].text });
+             }
+             delete payload.contents;
+             delete payload.systemInstruction;
+        }
+
+        const MAX_RETRIES = 5;
+        const BASE_DELAY_MS = 1000;
+        let retryIndicator = null;
+
+        for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+            try {
+                const response = await fetch(aiProviderApiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${aiProviderApiKey}` },
+                    body: JSON.stringify(payload)
+                });
+
+                if (response.ok) {
+                    if (retryIndicator) retryIndicator.remove();
+                    const result = await response.json();
+                    if (result.choices && result.choices[0] && result.choices[0].message) {
+                         return result.choices[0].message.content;
+                    }
+                    if (result.candidates && result.candidates[0].content && result.candidates[0].content.parts) {
+                        return result.candidates[0].content.parts[0].text;
+                    }
+                    throw new Error("Invalid API response structure.");
+                }
+
+                if (response.status === 429 || response.status >= 500) {
+                    let waitTime = (BASE_DELAY_MS * Math.pow(3, attempt)) + (Math.random() * 1000);
+                    const retryAfter = response.headers.get('retry-after');
+                    if (retryAfter) {
+                        waitTime = (parseFloat(retryAfter) * 1000) + (Math.random() * 2000);
+                    }
+                    if (attempt >= MAX_RETRIES - 1) {
+                        throw new Error(`API Error: ${response.status} ${response.statusText}. Failed after ${MAX_RETRIES} attempts.`);
+                    }
+                    
+                    if (!retryIndicator) {
+                        retryIndicator = appendChatMessage('API rate limit hit. Retrying...', 'system');
+                    } else {
+                        retryIndicator.querySelector('div').textContent = `API rate limit hit. Retrying... (Attempt ${attempt + 2})`;
+                    }
+
+                    await new Promise(resolve => setTimeout(resolve, waitTime));
+                    continue; 
+                }
+                const errorBody = await response.text();
+                throw new Error(`API Error: ${response.status} ${response.statusText} - ${errorBody}`);
+            } catch (err) {
+                console.error("AI_getResponse Fetch Error:", err);
+                if (attempt >= MAX_RETRIES - 1) { 
+                    if (retryIndicator) retryIndicator.remove();
+                    throw err; 
+                }
+                let waitTime = (BASE_DELAY_MS * Math.pow(3, attempt)) + (Math.random() * 1000);
+                if (!retryIndicator) {
+                    retryIndicator = appendChatMessage('Network error. Retrying...', 'system');
+                } else {
+                     retryIndicator.querySelector('div').textContent = `Network error. Retrying... (Attempt ${attempt + 2})`;
+                }
+                await new Promise(resolve => setTimeout(resolve, waitTime));
+            }
+        }
+        if (retryIndicator) retryIndicator.remove();
+        throw new Error(`AI request failed after ${MAX_RETRIES} attempts.`);
+    }
+    
+    async function callTavilyAPI(query) {
+        if (!tavilyApiKey) throw new Error("Tavily API Key not set. Please set it in Settings.");
+        const response = await fetch('https://api.tavily.com/search', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                api_key: tavilyApiKey, query, search_depth: "advanced", include_answer: true, max_results: 15, chunks_per_source: 5, country: "india",
+                exclude_domains: ["indiankanoon.org"]
+            }),
+        });
+        if (!response.ok) throw new Error(`Tavily API error: ${response.statusText}`);
+        return response.json();
+    }
+    
+    // --- PRE-PROCESSING & SUMMARIZATION ---
+    function estimateTokens(text) {
+        if (!text) return 0;
+        return Math.ceil(text.length / 4);
+    }
+    
+    function estimateTotalDocTokens() {
+        return allDocs.reduce((total, doc) => {
+            const pageContent = (doc.pageSnippets || []).map(p => p.content).join(' ');
+            return total + estimateTokens(pageContent);
+        }, 0);
+    }
+
+    async function getChunkSummary(chunk, source) {
+        if (!chunk || chunk.trim().length < 50) {
+            return `(No content on ${source} to summarize.)`;
+        }
+        const prompt = `Provide a very concise, three-paragraph summary for the following text chunk from a document (${source}). Focus on key names, events, or conclusions.\n\n--- TEXT CHUNK ---\n${chunk}`;
+        try {
+            return await AI_getResponse([
+                { role: 'system', content: 'You are a text chunk summarization assistant.' },
+                { role: 'user', content: prompt }
+            ], 0.2);
+        } catch (err) {
+            console.error(`Error summarizing chunk ${source}:`, err);
+            return `(Error summarizing ${source}.)`;
+        }
+    }
+
+    async function getFinalSynthesizedSummary(chunkSummaries, fileName) {
+        if (chunkSummaries.length === 0) return "No content to summarize.";
+        const prompt = `You are a legal summarization expert. You will be given ${chunkSummaries.length} partial summaries from different sections of the document "${fileName}". Your job is to synthesize these into a single, cohesive, ten-paragraph summary of the entire document. Ignore any "error" or "no content" messages.\n\n--- PARTIAL SUMMARIES ---\n${chunkSummaries.join('\n\n---\n\n')}\n\n--- FINAL SYNTHESIZED SUMMARY ---`;
+        try {
+            return await AI_getResponse([
+                { role: 'system', content: 'You synthesize partial summaries into a final document summary.' },
+                { role: 'user', content: prompt }
+            ], 0.5);
+        } catch (err) {
+            console.error("Error in getFinalSynthesizedSummary:", err);
+            return `Error generating final summary: ${err.message}`;
+        }
+    }
+    
+    async function getDatesFromChunk(chunk) {
+        const prompt = `Review the following text and extract all dates and their corresponding events mentioned. List each date with the corresponding event on a new line. If no dates are found, return "No dates found."\n\nTEXT:\n${chunk}`;
+        try {
+            return await AI_getResponse([{ role: 'system', content: 'You are a date and event (timeline) extraction assistant.' }, { role: 'user', content: prompt }], 0.1);
+        } catch (err) {
+            console.error("Error in getDatesFromChunk:", err);
+            return `Error extracting dates: ${err.message}`;
+        }
+    }
+
+    async function getFinalTimeline(rawDatesList, fileName) {
+        if (!rawDatesList || rawDatesList.toLowerCase() === "no key dates identified.") {
+            return "No key dates identified.";
+        }
+        const prompt = `You are a timeline generation expert for legal cases. You will be given a long, unorganized list of dates and events from the document "${fileName}". Your job is to analyze the entire list, merge duplicate entries, correct any errors, and output a single, clean, semantically-merged, and chronologically-sorted timeline mentioning events in one to two paragraphs for each date in the table.\n\n--- RAW DATE LIST ---\n${rawDatesList.substring(0, 100000)}...\n\n--- FINAL TIMELINE ---`;
+        try {
+            return await AI_getResponse([
+                { role: 'system', content: 'You are a timeline generation expert.' },
+                { role: 'user', content: prompt }
+            ], 0.3);
+        } catch (err) {
+            console.error(`Error in getFinalTimeline for ${fileName}:`, err);
+            return `(Error cleaning timeline.)`;
+        }
+    }
+
+    async function ensureAdvanceSummaries() {
+        const docsToSummarize = allDocs.filter(doc => !doc.finalSummary || !doc.finalTimeline);
+        if (docsToSummarize.length === 0) {
+            return;
+        }
+        let statusBubble = appendChatMessage(`Initializing advanced processing for ${docsToSummarize.length} document(s)...`, 'system');
+        const statusDiv = statusBubble.querySelector('div');
+        try {
+            for (const [docIndex, doc] of docsToSummarize.entries()) {
+                const docProgress = `(Doc ${docIndex + 1} of ${docsToSummarize.length})`;
+                try {
+                    let pageContentChunks = (doc.pageSnippets || []).map(p => p.content);
+                    if (pageContentChunks.length === 0) {
+                        doc.finalSummary = "No text content to summarize.";
+                        doc.finalTimeline = "No text content for timeline.";
+                        await saveData('documents', doc);
+                        continue;
+                    }
+                    const CHUNK_SIZE = 1000;
+
+                    statusDiv.textContent = `Analyzing "${doc.fileName}" ${docProgress}...`;
+                    const chunkSummaries = [];
+                    const chunkDates = [];
+                    for (let i = 0; i < pageContentChunks.length; i += CHUNK_SIZE) {
+                        const pageSlice = pageContentChunks.slice(i, i + CHUNK_SIZE);
+                        const combinedChunkText = pageSlice.join('\n\n--- End of Page ---\n\n');
+                        const sourceLabel = `Pages ${i+1}-${i + pageSlice.length}`;
+                        
+                        chunkSummaries.push(await getChunkSummary(combinedChunkText, sourceLabel));
+                        chunkDates.push(await getDatesFromChunk(combinedChunkText));
+                    }
+                    
+                    statusDiv.textContent = `Synthesizing assets for "${doc.fileName}" ${docProgress}...`;
+                    doc.finalSummary = await getFinalSynthesizedSummary(chunkSummaries, doc.fileName);
+                    const rawDatesList = chunkDates.length > 0 ? [...new Set(chunkDates.join('\n').split('\n'))].join('\n') : "No key dates identified.";
+                    doc.finalTimeline = await getFinalTimeline(rawDatesList, doc.fileName);
+                    
+                    if (doc.advanceSummary) delete doc.advanceSummary;
+                    await saveData('documents', doc);
+                } catch (err) {
+                    console.error(`Failed to process ${doc.fileName}:`, err);
+                    statusDiv.textContent = `⚠ Error on "${doc.fileName}". Skipping... (See console).`;
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                }
+            }
+            statusDiv.textContent = `✔ All document processing is up to date.`;
+        } catch (globalErr) {
+            console.error("Fatal error during summary generation:", globalErr);
+            statusDiv.textContent = `❌ A fatal error occurred during summary generation. See console.`;
+        }
+    }
+    
+    // --- AGENT HELPER FUNCTIONS ---
+
+    function getUniversalContextString(allDocs, mainChatHistory) {
+        const summariesContext = allDocs.map(doc => `--- Document: ${doc.fileName} ---\nSummary: ${doc.finalSummary || 'Not available.'}\nTimeline: ${doc.finalTimeline || 'Not available.'}\n---`).join('\n\n');
+        const history = getRecentMessages(mainChatHistory, 30);
+        const historyString = history.map(m => `${m.role}: ${m.content}`).join('\n');
+
+        return `--- ALL DOCUMENT SUMMARIES & TIMELINES ---\n${summariesContext}\n\n--- RECENT CHAT HISTORY ---\n${historyString}`;
+    }
+
+    async function getAIKeywords(userQuery, additionalContext, universalContext) {
+        const prompt = `Based on the user's query, the universal context provided (summaries, timelines, chat history) provide a short, comma-separated list of keywords to find the most relevant document pages. Provide *only* the keywords.\n\n--- UNIVERSAL CONTEXT ---\n${universalContext}\n\n--- USER QUERY ---\n${userQuery}`;
+        
+        try {
+            const response = await AI_getResponse([{ role: 'system', content: 'You are a search query optimization assistant.' }, { role: 'user', content: prompt }], 0);
+            return response.split(',').map(k => k.trim()).filter(k => k.length > 0);
+        } catch (err) {
+            console.error("Error in getAIKeywords:", err);
+            return userQuery.split(' ').map(k => k.trim()).filter(k => k.length > 2);
+        }
+    }
+
+    async function getLegalResearchQuery(userQuery, universalContext) {
+        const prompt = `You are a legal research expert. Your job is to convert the user's latest query into an optimal, one-sentence question for the Tavily search engine. Use the universal context (document summaries, timelines, chat history) to create a highly relevant query. **CRITICAL:** The query *must* end with the text "Jurisdiction: India & Doctype: judgements".\n\n--- UNIVERSAL CONTEXT ---\n${universalContext}\n\n--- LAST USER QUERY ---\n"${userQuery}"\n\n--- OPTIMAL ONE-SENTENCE TAVILY QUERY ---`;
+        const failsafeQuery = `${userQuery} Jurisdiction: India & Doctype: judgements`;
+
+        try {
+            const response = await AI_getResponse([
+                { role: 'system', content: 'You generate optimal, one-sentence web search queries for legal research.' },
+                { role: 'user', content: prompt }
+            ]);
+            const legalQuery = response.replace(/"/g, '').trim();
+            if (legalQuery && legalQuery.length > 10 && legalQuery.includes("Jurisdiction: India")) {
+                return legalQuery;
+            }
+            return failsafeQuery; 
+        } catch (err) {
+            console.error("Error in getLegalResearchQuery:", err);
+            return failsafeQuery;
+        }
+    }
+   
+    async function getAugmentedContext(keywords, allDocs) {
+        const MAX_CONTEXT_TOKENS = 90000;
+        let currentTokenBudget = 0;
+        
+        let contextString = "";
+        
+        const searchTerm = keywords.join(' | ');
+        const searchResult = await Orama.search(oramaDb, {
+            term: searchTerm,
+            properties: ['pageContent'],
+            limit: 25,
+            threshold: 0.1
+        });
+        
+        const pageMap = new Map();
+        for (const hit of searchResult.hits) {
+            const { docId, pageNumber } = hit.document;
+            if (!pageMap.has(docId)) pageMap.set(docId, new Set());
+            pageMap.get(docId).add(pageNumber);
+        }
+        
+        const finalPageMap = new Map();
+        for (const [docId, pageNumbers] of pageMap.entries()) {
+            const fullDoc = allDocs.find(d => d.id === docId);
+            if (!fullDoc || !fullDoc.pageSnippets) continue;
+            const maxPage = fullDoc.pageSnippets.length;
+            const expandedPages = new Set();
+            pageNumbers.forEach(pn => {
+                if (pn > 1) expandedPages.add(pn - 1);
+                expandedPages.add(pn);
+                if (pn < maxPage) expandedPages.add(pn + 1);
+            });
+            finalPageMap.set(docId, expandedPages);
+        }
+
+        let retrievedPagesString = "\n\n--- Relevant Context from Document Pages (Initial RAG) ---\n";
+        for (const [docId, pageNumbers] of finalPageMap.entries()) {
+            const fullDoc = allDocs.find(d => d.id === docId);
+            if (!fullDoc) continue;
+            const sortedPages = [...pageNumbers].sort((a, b) => a - b);
+            for (const pageNum of sortedPages) {
+                const snippet = fullDoc.pageSnippets.find(p => p.page === pageNum);
+                if (snippet) {
+                    const pageText = `\n[Context: docId="${fullDoc.id}" fileName="${fullDoc.fileName}" page=${snippet.page}]\n${snippet.content}\n`;
+                    const pageTokens = estimateTokens(pageText);
+                    if (currentTokenBudget + pageTokens < MAX_CONTEXT_TOKENS) {
+                        retrievedPagesString += pageText;
+                        currentTokenBudget += pageTokens;
+                    } else {
+                        retrievedPagesString += "\n... (Token limit reached, some pages omitted) ...\n";
+                        break;
+                    }
+                }
+            }
+            if (currentTokenBudget >= MAX_CONTEXT_TOKENS) break;
+        }
+        
+        contextString += retrievedPagesString;
+        return { contextString };
+    }
+
+    async function getInitialAnswer(userQuery, contextString, universalContext, agentScratchpad, thoughtsPanel) {
+        const systemPrompt = `You are a helpful AI assistant. Your job is to answer the "Step Query" below.
+        
+        To do this, use all available information:
+        1.  **Universal Context:** High-level summaries, timelines, and chat history.
+        2.  **Agent Scratchpad:** What you have already found in previous steps.
+        3.  **Context from RAG:** Relevant pages found via keyword search.
+
+        Your output should be a direct, factual answer to the "Step Query". Do not add conversational fluff.
+
+        --- UNIVERSAL CONTEXT ---
+        ${universalContext}
+
+        --- AGENT SCRATCHPAD (Results from previous steps) ---
+        ${agentScratchpad}
+
+        --- CONTEXT FROM RAG (Relevant Pages) ---
+        ${contextString}
+        
+        --- Step Query ---`;
+        
+        try {
+            const result = await AI_getResponse([
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: userQuery }
+            ]);
+            if (thoughtsPanel) {
+                thoughtsPanel.textContent += `\n\n--- Result for Step "${userQuery}" ---\n${result}`;
+                thoughtsPanel.scrollTop = thoughtsPanel.scrollHeight;
+            }
+            return result;
+
+        } catch (err) {
+            console.error("Error in getInitialAnswer:", err);
+            const errorMsg = `Error generating initial answer: ${err.message}`;
+            if (thoughtsPanel) thoughtsPanel.textContent += `\n\n--- ERROR ---\n${errorMsg}`;
+            return errorMsg;
+        }
+    }
+    
+    async function runWebRAG(userQuery) {
+        if (!tavilyApiKey) {
+            return "Error: Tavily API Key not set. Cannot perform web search.";
+        }
+        try {
+            const tavilyResponse = await callTavilyAPI(userQuery);
+            
+            const MAX_CONTEXT_TOKENS = 120000;
+            let contextString = `TAVILY AI SUMMARY:\n${tavilyResponse.answer || 'N/A'}\n\n`;
+            let currentTokenBudget = estimateTokens(contextString);
+            
+            (tavilyResponse.results || []).forEach(result => {
+                const chunkText = `\n\n--- SOURCE: ${result.url} ---\n${result.content || 'No content.'}`;
+                const chunkTokens = estimateTokens(chunkText);
+
+                if (currentTokenBudget + chunkTokens < MAX_CONTEXT_TOKENS) {
+                    contextString += chunkText;
+                    currentTokenBudget += chunkTokens;
+                }
+            });
+
+            if (tavilyResponse.results && tavilyResponse.results.length > 0 && currentTokenBudget === estimateTokens(contextString)) {
+                 contextString += "\n... (Token limit reached, some web results omitted) ...\n";
+            }
+
+            const finalAnswerPrompt = `You are a research assistant. Based ONLY on the provided Tavily summary and web content chunks, answer the user's query: "${userQuery}". Cite your sources (URLs) where appropriate using Markdown links. Format the final response clearly.\n\n--- CONTEXT FROM WEB ---\n${contextString}`;
+            
+            return await AI_getResponse([
+                { role: 'system', content: 'You are a research assistant.' },
+                { role: 'user', content: finalAnswerPrompt }
+            ]);
+
+        } catch (err) {
+            console.error("runWebRAG failed:", err);
+            return `Web search failed: ${err.message}`;
+        }
+    }    
+    
+    async function getAgenticPlan(userQuery, universalContext) {
+        const prompt = `You are a master paralegal agent. Your job is to create a multi-step plan to answer the user's query using context provided.
+        
+        Analyze the user's query and the universal context (summaries, timelines, history). Break down the query into a series of logical steps. Each step must be a text query.
+
+        The user's request is: "${userQuery}"
+        The universal context is: ${universalContext}
+
+        Respond with ONLY the JSON object containing a "plan" key, which is an array of steps. Example: {"plan": ["Step 1 query", "Step 2 query"]}`;
+        
+        try {
+            const response = await AI_getResponse([
+                { role: 'system', content: "You respond with only a JSON object with a 'plan' key containing an array of step strings." },
+                { role: 'user', content: prompt }
+            ], 0);
+            const jsonString = response.replace(/```json\n|```/g, "").trim();
+            const parsed = JSON.parse(jsonString);
+            return parsed.plan.map(p => ({ "step": p, "query": p }));
+        } catch (err) {
+            console.error("Agent Plan generation failed:", err);
+            return [{ "step": "Failsafe: Answer the user's query directly.", "query": userQuery }];
+        }
+    }    
+
+    async function runSimpleQAMode(userInput) {
+        const aiMessageBubble = appendChatMessage("Thinking...", 'ai');
+        const contentDiv = aiMessageBubble.querySelector('.ai-message-content');
+        
+        try {
+            const allDocContent = allDocs.map(doc => {
+                const pageContent = (doc.pageSnippets || []).map(p => `Page ${p.page}: ${p.content}`).join('\n');
+                return `--- DOCUMENT: ${doc.fileName} ---\n${pageContent}\n---`;
+            }).join('\n\n');
+
+            const history = getRecentMessages(mainChatHistory, 30);
+            const historyString = history.map(m => `${m.role}: ${m.content}`).join('\n');
+
+            const systemPrompt = `You are a helpful AI assistant. Answer the user's query based on the chat history and the full content of all provided documents. Format the answer in Markdown.
+            
+            --- CHAT HISTORY ---
+            ${historyString}
+            
+            --- ALL DOCUMENT CONTENT ---
+            ${allDocContent}
+            `;
+            
+            const finalAnswer = await AI_getResponse([
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: userInput }
+            ]);
+            
+            contentDiv.innerHTML = marked.parse(finalAnswer);
+            const aiMessage = { role: "assistant", content: finalAnswer, format: 'markdown' };
+            mainChatHistory.push(aiMessage);
+            await saveChatMessages([aiMessage]);
+            await reindexAllData();
+
+        } catch(err) {
+            contentDiv.innerHTML = `<p class="text-red-500">Error: ${err.message}</p>`;
+            throw err;
+        }
+    }
+
+    // MODIFIED: This function now calculates chunk size dynamically.
+    async function getBruteForceAugmentation(scratchpad, allDocs, universalContext, thoughtsPanel) {
+        let augmentedScratchpad = scratchpad;
+        const allDocPages = allDocs.map(doc => ({
+            fileName: doc.fileName,
+            pages: doc.pageSnippets || []
+        }));
+
+        // Dynamically determine the chunk size based on settings.
+        let baseChunkSize;
+        if (contextSwitchLimit > 128000 && contextSwitchLimit <= 1000000) {
+            baseChunkSize = 1000;
+        } else { // Default for <= 128k or very large contexts
+            baseChunkSize = 75;
+        }
+        
+        // Use the greater of the calculated minimum or the user's own setting.
+        const CHUNK_SIZE = Math.max(baseChunkSize, deepScanChunkSize);
+        if (thoughtsPanel) {
+             thoughtsPanel.textContent += `\n(Deep Scan using effective chunk size of ${CHUNK_SIZE} pages)`;
+        }
+
+        for (const doc of allDocPages) {
+            if (!doc.pages.length) continue;
+
+            for (let i = 0; i < doc.pages.length; i += CHUNK_SIZE) {
+                const pageSlice = doc.pages.slice(i, i + CHUNK_SIZE);
+                const chunkText = pageSlice.map(p => `[Page ${p.page}]\n${p.content}`).join('\n\n');
+                const sourceLabel = `${doc.fileName}, Pages ${pageSlice[0].page}-${pageSlice[pageSlice.length-1].page}`;
+
+                if (thoughtsPanel) {
+                    thoughtsPanel.textContent += `\n\nDeep scan: ${sourceLabel}...`;
+                    thoughtsPanel.scrollTop = thoughtsPanel.scrollHeight;
+                }
+
+                const prompt = `You are a expert thought generator AI assistant who will find and state any information found in the TEXT CHUNK which can augument the answers already generated in the PRIOR NOTES. You will state only such information from TEXT CHUNK which are not mentioned in the already generated answers or are contradictory to the already generated answers. CRITICAL ISSUE: **In any case your thoughts should never be more than one paragraph. Always state your though in not more than one paragraph.
+               
+                --- TEXT CHUNK ---
+                ${chunkText}
+                --- END CHUNK ---
+                
+                --- PRIOR NOTES ---
+                ${scratchpad}
+                --- PRIOR NOTES ---
+                
+                --- UNIVERSAL CONTEXT ---
+                ${universalContext}
+                --- END CONTEXT ---
+
+                `;
+
+                try {
+                    const relevantSnippets = await AI_getResponse([
+                        { role: 'system', content: 'You are a thought generating ai assistant.' },
+                        { role: 'user', content: prompt }
+                    ], 0.6);
+
+                    if (relevantSnippets && !relevantSnippets.includes("No relevant context.")) {
+                        const newContext = `\n\n--- Supporting Context from ${sourceLabel} ---\n${relevantSnippets}`;
+                        augmentedScratchpad += newContext;
+                        if(thoughtsPanel) thoughtsPanel.textContent += newContext;
+                    }
+                } catch (err) {
+                    console.error(`Error during brute-force scan of ${sourceLabel}:`, err);
+                    const errorContext = `\n\n--- Error scanning ${sourceLabel}: ${err.message} ---`;
+                    augmentedScratchpad += errorContext;
+                    if(thoughtsPanel) thoughtsPanel.textContent += errorContext;
+                }
+            }
+        }
+        return augmentedScratchpad;
+    }
+    
+    // MODIFIED: This function now conditionally runs the Deep Scan.
+    async function handleChatSend() {
+        const userInput = DOMElements.chat.textInput?.value.trim();
+        if (!userInput) return;
+
+        appendChatMessage(userInput, 'user');
+        DOMElements.chat.textInput.value = '';
+        const userMessage = { role: "user", content: userInput, format: 'text' };
+        mainChatHistory.push(userMessage);
+        await saveChatMessages([userMessage]);
+        
+        let finalAnswer = "";
+        let aiMessageBubble;
+
+        try {
+            if (currentWebMode === 'websearch' || currentWebMode === 'legalresearch') {
+                const typingIndicator = appendChatMessage(`Running ${currentWebMode === 'legalresearch' ? 'Legal Research' : 'WebSearch'}...`, 'system');
+                let query = userInput;
+                if (currentWebMode === 'legalresearch') {
+                    const universalContext = getUniversalContextString(allDocs, mainChatHistory);
+                    query = await getLegalResearchQuery(userInput, universalContext);
+                    typingIndicator.querySelector('div').textContent = `Researching: "${query}"...`;
+                }
+                finalAnswer = await runWebRAG(query);
+                if(typingIndicator) typingIndicator.remove();
+            } 
+            else { // Local Mode (Off)
+                const totalDocTokens = estimateTotalDocTokens();
+                if (totalDocTokens < contextSwitchLimit) {
+                    await runSimpleQAMode(userInput);
+                    return; 
+                }
+
+                // --- DAS Workflow (Complex Mode) ---
+                aiMessageBubble = appendChatMessage("Thinking...", 'ai');
+                const thoughtsPanel = aiMessageBubble.querySelector('.thoughts-content');
+                thoughtsPanel.textContent = "Complex DAS mode activated...";
+
+                await ensureAdvanceSummaries();
+                
+                const universalContext = getUniversalContextString(allDocs, mainChatHistory);
+                
+                // --- Step: DRAFT (Plan & Initial Execution) ---
+                thoughtsPanel.textContent += "\nStep 1: Planning...";
+                const planSteps = await getAgenticPlan(userInput, universalContext);
+                thoughtsPanel.textContent += `\nPlan Generated: ${planSteps.length} steps.`;
+                
+                let agentScratchpad = "";
+                
+                const initialKeywords = await getAIKeywords(userInput, "", universalContext);
+                const { contextString } = await getAugmentedContext(initialKeywords, allDocs);
+                
+                for (let i = 0; i < planSteps.length; i++) {
+                    const step = planSteps[i];
+                    thoughtsPanel.textContent += `\nExecuting Step ${i + 1}/${planSteps.length}: ${step.step}...`;
+                    
+                    const stepKeywords = await getAIKeywords(step.query, agentScratchpad, universalContext);
+                    const { contextString: stepContextString } = await getAugmentedContext(stepKeywords, allDocs);
+                    
+                    const stepResult = await getInitialAnswer(step.query, stepContextString, universalContext, agentScratchpad, thoughtsPanel);
+                    agentScratchpad += `\n\n--- Result for Step "${step.step}" ---\n${stepResult}`;
+                }
+
+                // --- Step: AUGMENT (Now conditional) ---
+                let augmentedScratchpad;
+                if (isDeepScanEnabled) {
+                    augmentedScratchpad = await getBruteForceAugmentation(agentScratchpad, allDocs, universalContext, thoughtsPanel);
+                } else {
+                    thoughtsPanel.textContent += "\n\nDeep Scan is disabled. Skipping augmentation step.";
+                    augmentedScratchpad = agentScratchpad; // Pass through without changes
+                }
+
+                // --- Step: SYNTHESIZE (New Final Step) ---
+                thoughtsPanel.textContent += "\n\nSynthesizing final answer...";
+                const finalPrompt = `Based *only* on the following comprehensive research notes (which include Q&A and all supporting context) and universal context (which contains the main chat history,summaries and timelines of documents), give properly formatted answer to the user's original query. CRITICAL ISSUE: Only give Answer to the user's original query.
+               
+
+ Format the answer clearly in Markdown.
+                
+                --- UNIVERSAL CONTEXT ---
+                ${universalContext}
+
+                --- COMPREHENSIVE RESEARCH NOTES (SCRATCHPAD) ---
+                ${augmentedScratchpad}
+                
+                --- ORIGINAL USER QUERY ---
+                ${userInput}
+                
+                --- FINAL ANSWER ---`;
+                
+                finalAnswer = await AI_getResponse([
+                    { role: 'system', content: 'You are a helpful AI Assitant.' },
+                    { role: 'user', content: finalPrompt }
+                ]);
+            }
+            
+            const finalContentDiv = aiMessageBubble ? aiMessageBubble.querySelector('.ai-message-content') : null;
+            if (finalContentDiv) {
+                finalContentDiv.innerHTML = marked.parse(finalAnswer);
+            } else {
+                appendChatMessage(finalAnswer, 'ai', { isHtml: true });
+            }
+
+            const aiMessage = { role: "assistant", content: finalAnswer, format: 'markdown' };
+            mainChatHistory.push(aiMessage);
+            await saveChatMessages([aiMessage]);
+            await reindexAllData();
+        
+        } catch (err) {
+            const errorMsg = `An agentic task failed: ${err.message}`;
+            const errorContentDiv = aiMessageBubble ? aiMessageBubble.querySelector('.ai-message-content') : null;
+            if (errorContentDiv) {
+                errorContentDiv.innerHTML = marked.parse(errorMsg);
+            } else {
+                appendChatMessage(errorMsg, 'ai', { isHtml: true });
+            }
+            mainChatHistory.push({ role: "assistant", content: errorMsg, format: 'markdown' });
+            await saveChatMessages([{ role: "assistant", content: errorMsg, format: 'markdown' }]);
+            console.error("handleChatSend agent error:", err);
+        }
+    }
+
+    // MODIFIED: This function also conditionally runs the Deep Scan.
+    async function runAgenticWorkflow(userQuery, updateStatusCallback, editorContext = '') {
+        // Simple mode for editor: a direct call with full document context.
+        async function runSimpleEditorMode() {
+            updateStatusCallback('Running in Simple Mode...');
+            const allDocContent = allDocs.map(doc => {
+                const pageContent = (doc.pageSnippets || []).map(p => `Page ${p.page}: ${p.content}`).join('\n');
+                return `--- DOCUMENT: ${doc.fileName} ---\n${pageContent}\n---`;
+            }).join('\n\n');
+
+            const systemPrompt = `You are an AI assistant integrated into a text editor. Respond to the user's query based on the editor's current content and the full text of all provided documents. Format the answer in Markdown.
+            
+            --- EDITOR CONTENT (for context) ---
+            ${editorContext}
+            
+            --- ALL DOCUMENT CONTENT (for context) ---
+            ${allDocContent}
+            `;
+            
+            return await AI_getResponse([
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: userQuery }
+            ]);
+        }
+
+        // --- Main Workflow Logic ---
+        const totalDocTokens = estimateTotalDocTokens();
+        if (totalDocTokens < contextSwitchLimit) {
+            return await runSimpleEditorMode();
+        }
+
+        // --- DAS Workflow (Complex Mode) ---
+        await ensureAdvanceSummaries();
+        
+        const universalContext = getUniversalContextString(allDocs, mainChatHistory);
+
+        // --- Step: DRAFT (Plan & Initial Execution) ---
+        updateStatusCallback("Step 1: Planning...");
+        const planSteps = await getAgenticPlan(userQuery, universalContext);
+        
+        let agentScratchpad = "";
+        const totalSteps = planSteps.length;
+        
+        const initialKeywords = await getAIKeywords(userQuery, "", universalContext);
+        const { contextString } = await getAugmentedContext(initialKeywords, allDocs);
+        
+        for (let i = 0; i < totalSteps; i++) {
+            const step = planSteps[i];
+            updateStatusCallback(`Step ${i + 1}/${totalSteps}: ${step.step}...`);
+            
+            const stepKeywords = await getAIKeywords(step.query, agentScratchpad, universalContext);
+            const { contextString: stepContextString } = await getAugmentedContext(stepKeywords, allDocs);
+            
+            const fullScratchpad = `EDITOR CONTENT:\n${editorContext}\n\nSCRATCHPAD:\n${agentScratchpad}`;
+            const stepResult = await getInitialAnswer(step.query, stepContextString, universalContext, fullScratchpad, null);
+            agentScratchpad += `\n\n--- Result for Step "${step.step}" ---\n${stepResult}`;
+        }
+
+        // --- Step: AUGMENT (Now conditional) ---
+        let augmentedScratchpad;
+        if (isDeepScanEnabled) {
+             updateStatusCallback("Deep research: Scanning all documents. This may take time...");
+             augmentedScratchpad = await getBruteForceAugmentation(agentScratchpad, allDocs, universalContext, null);
+        } else {
+             updateStatusCallback("Deep Scan disabled. Skipping...");
+             augmentedScratchpad = agentScratchpad; // Pass through if disabled
+        }
+
+        // --- Step: SYNTHESIZE (New Final Step) ---
+        updateStatusCallback("Synthesizing final answer...");
+        const finalPrompt = `Based *only* on the following comprehensive research notes (which include Q&A and all supporting context) and the universal content (which includes chat history, summaries and timelines of documents), answer the user's original query.
+        Format the answer clearly in Markdown.
+        
+        --- COMPREHENSIVE RESEARCH NOTES (SCRATCHPAD) ---
+        ${augmentedScratchpad}
+        
+        --- UNIVERSAL CONTEXT ---
+        ${universalContext}
+        
+        --- ORIGINAL USER QUERY ---
+        ${userQuery}
+        
+        --- FINAL ANSWER ---`;
+
+        const finalAnswer = await AI_getResponse([
+            { role: 'system', content: 'You are a meticulous legal drafting AI.' },
+            { role: 'user', content: finalPrompt }
+        ]);
+        
+        return finalAnswer;
+    }
+
+
+    // --- NEW: AI Insert & Multi-Section Builder Functions ---
+
+    async function handleSimpleAIInsert() {
+        closeModal(DOMElements.aiInsertChoiceModal.modal);
+        if (!activeEditorInstance) {
+            alert("Error: Editor context was lost. Please close this and click the AI button again.");
+            return;
+        }
+
+        const userPrompt = prompt("What content would you like to generate and insert?");
+        if (!userPrompt || !userPrompt.trim()) {
+            activeEditorInstance = null; // Clear context if cancelled
+            return;
+        }
+
+        showEditorStatusUpdate("Starting AI generation...");
+        try {
+            const editorContext = activeEditorInstance.getContents(true);
+            const generatedContent = await runAgenticWorkflow(userPrompt, showEditorStatusUpdate, editorContext);
+            const finalHtml = marked.parse(generatedContent);
+            
+            activeEditorInstance.functions.insertHTML(finalHtml, true);
+            activeEditorInstance.history.push(false);
+        } catch (err) {
+            console.error("Simple AI Insert failed:", err);
+            alert("Insert request failed: " + err.message);
+        } finally {
+            hideEditorStatusUpdate();
+            activeEditorInstance = null; // Clear context after use
+        }
+    }
+
+    function openMultiSectionBuilder() {
+        const { container, status } = DOMElements.multiSectionModal;
+        container.innerHTML = '';
+        addMultiSection(); // Start with one empty section
+        status.textContent = "Ready";
+        openModal(DOMElements.multiSectionModal.modal);
+    }
+
+    function addMultiSection(data = {}) {
+        const template = document.getElementById('section-template');
+        const clone = template.content.cloneNode(true);
+        const sectionItem = clone.querySelector('.section-item');
+
+        sectionItem.querySelector('input[name="section-heading"]').value = data.heading || '';
+        sectionItem.querySelector('textarea[name="section-prompt"]').value = data.prompt || '';
+        sectionItem.querySelector('textarea[name="section-examples"]').value = data.examples || '';
+        
+        sectionItem.querySelector('.delete-section-btn').addEventListener('click', () => sectionItem.remove());
+
+        DOMElements.multiSectionModal.container.appendChild(clone);
+        lucide.createIcons();
+    }
+
+    async function processAllMultiSections() {
+        const { status, processBtn } = DOMElements.multiSectionModal;
+        const sections = document.querySelectorAll('#multi-section-container .section-item');
+        if (sections.length === 0) {
+            status.textContent = "Please add at least one section.";
+            return;
+        }
+
+        processBtn.disabled = true;
+        const originalBtnContent = processBtn.innerHTML;
+        processBtn.innerHTML = `<span class="loader" style="width:20px;height:20px;border-width:3px;"></span> Processing...`;
+
+        for (let i = 0; i < sections.length; i++) {
+            const section = sections[i];
+            const headingInput = section.querySelector('input[name="section-heading"]');
+            const promptInput = section.querySelector('textarea[name="section-prompt"]');
+            const examplesInput = section.querySelector('textarea[name="section-examples"]');
+            const answerField = section.querySelector('textarea[name="section-answer"]');
+
+            const prompt = promptInput.value.trim();
+            if (!prompt) {
+                answerField.value = "Skipped: Prompt is empty.";
+                continue;
+            }
+
+            status.textContent = `Processing section ${i + 1}/${sections.length}: "${headingInput.value || 'Untitled'}"...`;
+            answerField.value = "Generating...";
+
+            try {
+                const fullQuery = `${prompt}\n\n${examplesInput.value ? `--- EXAMPLES/STYLE GUIDANCE ---\n${examplesInput.value}` : ''}`;
+                const editorContext = activeEditorInstance ? activeEditorInstance.getContents(true) : '';
+                
+                const result = await runAgenticWorkflow(fullQuery, (msg) => { status.textContent = `Section ${i + 1}: ${msg}`; }, editorContext);
+                answerField.value = result;
+            } catch (err) {
+                console.error("Section processing failed:", err);
+                answerField.value = `Error: ${err.message}`;
+            }
+        }
+        
+        status.textContent = `All sections processed.`;
+        processBtn.disabled = false;
+        processBtn.innerHTML = originalBtnContent;
+    }
+    
+    function generateMultiSectionDocument() {
+        if (!activeEditorInstance) {
+            alert("Error: Editor context not found. Please re-open the builder from the editor.");
+            return;
+        }
+        const sections = DOMElements.multiSectionModal.container.querySelectorAll('.section-item');
+        let finalHtml = '';
+        sections.forEach(section => {
+            const heading = section.querySelector('input[name="section-heading"]').value.trim();
+            const answer = section.querySelector('textarea[name="section-answer"]').value;
+            if (heading) { finalHtml += `<h2>${heading}</h2>`; }
+            if (answer) { finalHtml += marked.parse(answer); }
+        });
+
+        if (!finalHtml.trim()) {
+            alert("No content to insert. Please process the sections first.");
+            return;
+        }
+
+        try {
+            activeEditorInstance.functions.insertHTML(finalHtml, true);
+            activeEditorInstance.history.push(false);
+            closeModal(DOMElements.multiSectionModal.modal);
+        } catch (err) {
+            alert("Failed to insert content into the editor. See console for details.");
+            console.error("Error during final insertion:", err);
+        } finally {
+            activeEditorInstance = null; // Clear context
+        }
+    }
+    
+    function exportMultiSectionForm() {
+        const sections = DOMElements.multiSectionModal.container.querySelectorAll('.section-item');
+        if (sections.length === 0) { alert("Nothing to export."); return; }
+
+        const data = Array.from(sections).map(section => ({
+            heading: section.querySelector('input[name="section-heading"]').value,
+            prompt: section.querySelector('textarea[name="section-prompt"]').value,
+            examples: section.querySelector('textarea[name="section-examples"]').value,
+        }));
+        
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `doc-builder-form-${new Date().toISOString().slice(0,10)}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    }
+        
+    function handleLegalResearchRestart() {
+        if (confirm("Are you sure you want to restart the research session? The current context and history will be cleared.")) {
+            legalResearchSession = { history: [], context: '', sourcesHTML: '' };
+            DOMElements.legalResearch.results.innerHTML = '<p class="text-gray-500">New research session started. Enter your query below.</p>';
+            saveData('draftState', { id: 'legalResearchSession', ...legalResearchSession });
+        }
+    }
+
+    // --- OTHER HANDLERS ---
+    function closeDraftEditor() {
+        if (editorBackupInterval) { clearInterval(editorBackupInterval); editorBackupInterval = null; }
+        const editor = sunEditorInstances['draft-editor'];
+        if (editor) {
+            if (editor.core.isFullscreen) editor.core.toggleFullScreen();
+            editor.destroy();
+            delete sunEditorInstances['draft-editor'];
+        }
+        closeModal(DOMElements.draftEditor.modal);
+        delete DOMElements.draftEditor.modal.dataset.editingDocId;
+    }
+
+    async function handleDiscardDraft() {
+        if (confirm("Are you sure? Unsaved changes will be lost.")) {
+            await deleteData('draftState', 'activeDraft');
+            closeDraftEditor();
+        }
+    }
+
+    async function handleSaveDraft() {
+        const editor = sunEditorInstances['draft-editor']; if (!editor) return;
+        const htmlContent = editor.getContents(true);
+        if (!htmlContent.trim() || htmlContent === '<p><br></p>') {
+            alert("The draft is empty."); return;
+        }
+        
+        const editingDocId = DOMElements.draftEditor.modal.dataset.editingDocId;
+        let docId = editingDocId || `doc-${Date.now()}-${Math.random()}`;
+        let fileName;
+
+        if (editingDocId) {
+            const existingRawDoc = await loadData('editedDocs', editingDocId);
+            fileName = prompt("Update file name?", existingRawDoc ? existingRawDoc.fileName : 'Untitled.html');
+        } else {
+            fileName = prompt("Enter a file name for the new draft:", `Draft - ${new Date().toLocaleString()}.html`);
+        }
+        if (!fileName) return;
+
+        const rawHtmlDoc = {
+            id: docId, fileName: fileName, htmlContent: htmlContent, lastModified: new Date().toISOString()
+        };
+        
+        try {
+            await saveData('editedDocs', rawHtmlDoc);
+            appendChatMessage(`Draft "${fileName}" saved successfully.`, 'system');
+        } catch (err) {
+            console.error("Error saving draft:", err);
+            appendChatMessage(`Error saving draft "${fileName}": ${err.message}`, 'system');
+            return;
+        }
+        
+        await deleteData('draftState', 'activeDraft');
+        closeDraftEditor();
+    }
+
+    function renderLibraryDocs(term = '') {
+        const list = DOMElements.library.documentList;
+        const docsToShow = allDocs.filter(doc => doc.fileName.toLowerCase().includes(term.toLowerCase()));
+        if (docsToShow.length === 0) {
+            list.innerHTML = `<div class="text-center text-gray-500 p-4"><h3 class="font-semibold text-lg">No documents found.</h3><p class="text-sm">Upload a file to get started.</p></div>`;
+            return;
+        }
+        list.innerHTML = '';
+        docsToShow.forEach(doc => {
+            const item = document.createElement('div');
+            item.className = 'document-list-item p-2 rounded-md hover:bg-gray-100 cursor-pointer';
+            item.dataset.id = doc.id;
+            const icon = doc.fileType === 'application/vnd.agentic-chat.draft-snippets' ? 'file-check-2' : 'file-text';
+            item.innerHTML = `<span class="flex items-center gap-2 text-sm font-medium truncate"><i data-lucide="${icon}" class="h-5 w-5 text-gray-500"></i> ${doc.fileName}</span>`;
+            list.appendChild(item);
+        });
+        lucide.createIcons();
+    }
+
+    function processFile(file) {
+        return new Promise(async (resolve, reject) => {
+            const systemMessage = appendChatMessage(`Queueing "${file.name}" for processing...`, 'system');
+            const doc = { 
+                id: `doc-${Date.now()}-${Math.random()}`, fileName: file.name, fileType: file.type, 
+                chatHistory: [], pageSnippets: []
+            };
+
+            try {
+                const reader = new FileReader();
+                reader.onload = async (e) => {
+                    try {
+                        systemMessage.querySelector('div').textContent = `Processing "${file.name}"...`;
+                        let tempDataURL = e.target.result;
+                        const originalName = doc.fileName;
+                        
+                        if (!doc.fileType.includes('pdf')) {
+                            systemMessage.querySelector('div').textContent = `Converting "${originalName}" to PDF...`;
+                            const tempDocForConversion = {...doc, dataURL: tempDataURL};
+                            const pdfDataUrl = await convertToPdf(tempDocForConversion);
+                            tempDataURL = pdfDataUrl;
+                            doc.fileType = 'application/pdf';
+                            systemMessage.querySelector('div').textContent = `Extracting text from converted PDF...`;
+                        }
+
+                        doc.dataURL = tempDataURL;
+                        await extractContent(doc); 
+                        
+                        allDocs.push(doc);
+                        await saveData('documents', doc);
+                        
+                        systemMessage.querySelector('div').textContent = `✔ Successfully processed "${originalName}". Summary will be generated on first query.`;
+                        resolve();
+                    } catch (err) {
+                        console.error(`Error processing file ${file.name} inside onload:`, err);
+                        systemMessage.querySelector('div').innerHTML = `❌ Error processing "${file.name}". See console.`;
+                        reject(err);
+                    }
+                };
+                reader.onerror = (err) => {
+                    console.error(`FileReader error for ${file.name}:`, err);
+                    systemMessage.querySelector('div').innerHTML = `❌ Error reading "${file.name}".`;
+                    reject(err);
+                };
+                reader.readAsDataURL(file);
+            } catch (err) {
+                console.error(`Error processing file ${file.name}:`, err);
+                systemMessage.querySelector('div').innerHTML = `❌ Error processing "${file.name}". See console.`;
+                reject(err);
+            }
+        });
+    }
+
+    async function handleFileUpload(event) {
+        const files = Array.from(event.target.files);
+        if (files.length > 1) {
+             appendChatMessage(`${files.length} files have been added to the processing queue. This may take a while.`, 'system');
+        }
+        for (const file of files) {
+            try {
+                await processFile(file); 
+            } catch (error) {
+                console.error(`Failed to process ${file.name}. Moving to the next file.`);
+            }
+        }
+        event.target.value = '';
+    }
+
+    function handleCopyContent(event) {
+        const btn = event.currentTarget; const docId = btn.dataset.docId; const doc = allDocs.find(d => d.id === docId);
+        if (doc && doc.pageSnippets) {
+            const fullText = doc.pageSnippets.map(p => `--- Page ${p.page} ---\n${p.content}`).join('\n\n');
+            navigator.clipboard.writeText(fullText).then(() => {
+                const originalText = btn.innerHTML; btn.innerHTML = `<i data-lucide="check" class="h-3 w-3"></i> <span>Copied!</span>`; lucide.createIcons();
+                setTimeout(() => { btn.innerHTML = originalText; lucide.createIcons(); }, 2000);
+            });
+        }
+    }
+
+    async function handleDownloadDoc(event) {
+        const btn = event.currentTarget; const docId = btn.dataset.docId; 
+        const rawDoc = await loadData('editedDocs', docId);
+        if (rawDoc && rawDoc.htmlContent) {
+            try {
+                const content = `<!DOCTYPE html><html><head><title>${rawDoc.fileName}</title></head><body>${rawDoc.htmlContent}</body></html>`;
+                const fileBlob = htmlDocx.asBlob(content);
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(fileBlob);
+                let downloadName = rawDoc.fileName.substring(0, rawDoc.fileName.lastIndexOf('.') > 0 ? rawDoc.fileName.lastIndexOf('.') : rawDoc.fileName.length);
+                link.download = `${downloadName}.doc`;
+                document.body.appendChild(link); link.click(); document.body.removeChild(link);
+            } catch (error) {
+                console.error("Error creating DOC file:", error);
+                alert("Sorry, there was an error creating the Word document.");
+            }
+        }
+    }
+    
+    async function indexChatHistory() {
+        const chatHistoryId = 'main-chat-history';
+        try { await Orama.remove(oramaDb, { where: { id: chatHistoryId } }); } catch (e) { /* ignore */ }
+        if (mainChatHistory.length === 0) return;
+        
+        const fullText = mainChatHistory.map(m => { 
+            const content = (m.format === 'markdown' || m.format === 'html') ? new DOMParser().parseFromString(m.content, 'text/html').body.textContent : m.content; 
+            return `${m.role.charAt(0).toUpperCase() + m.role.slice(1)}: ${content}`; 
+        }).join('\n\n');
+        
+        await Orama.insert(oramaDb, { 
+            id: chatHistoryId, docId: 'main-chat', fileName: 'Main Chat History', 
+            pageNumber: 1, pageContent: fullText 
+        });
+    }
+
+    async function handleFullSearch() {
+        const term = DOMElements.searchModal.input.value.trim(); if (!term) return;
+        const resultsContainer = DOMElements.searchModal.resultsList;
+        resultsContainer.innerHTML = '<p class="text-gray-500">Searching...</p>';
+        DOMElements.searchModal.interactionPane.innerHTML = '<p class="text-gray-500 text-center mt-10">Click a result title to view the full document.</p>';
+        
+        const searchResult = await Orama.search(oramaDb, { 
+            term, properties: ['pageContent', 'fileName'] 
+        });
+        
+        DOMElements.searchModal.resultsSummary.innerHTML = `<strong>${searchResult.hits.length} matching pages found</strong>`;
+        if (searchResult.hits.length === 0) { resultsContainer.innerHTML = `<p class="text-gray-500">No results found.</p>`; return; }
+        
+        resultsContainer.innerHTML = '';
+        searchResult.hits.forEach(hit => {
+            const doc = hit.document;
+            const isChatHistory = doc.docId === 'main-chat';
+            
+            const resultItem = document.createElement('div');
+            resultItem.className = 'result-item';
+            resultItem.innerHTML = `
+                <div class="flex items-start gap-3">
+                    <i data-lucide="${isChatHistory ? 'message-square' : 'file-text'}" class="h-5 w-5 text-gray-500 mt-1 flex-shrink-0"></i>
+                    <div class="flex-grow">
+                        <p class="result-title" data-doc-id="${doc.docId}">
+                            ${doc.fileName} ${!isChatHistory ? `(Page ${doc.pageNumber})` : ''}
+                        </p>
+                        <div class="text-sm text-gray-600">${getHighlightedContentHtml(doc.pageContent, term)}</div>
+                        ${!isChatHistory ? `<button class="text-xs text-blue-600 hover:underline mt-1" onclick="window.openDocChatModal('${doc.docId}')"><i data-lucide="message-circle" class="inline-block h-3 w-3 mr-1"></i> Chat</button>` : ''}
+                    </div>
+                </div>`;
+            resultsContainer.appendChild(resultItem);
+        });
+        
+        resultsContainer.querySelectorAll('.result-title').forEach(el => el.addEventListener('click', showDocumentInPane));
+        lucide.createIcons();
+    }
+    
+    window.openDocChatModal = openDocChatModal;
+
+    function getHighlightedContentHtml(pageContent, term) {
+        if (!pageContent || !term) return '<p class="result-snippet">...</p>';
+        const keywords = term.trim().split(/\s+/).filter(k => k.length > 0);
+        if (keywords.length === 0) return '<p class="result-snippet">...</p>';
+
+        const lowerPageContent = pageContent.toLowerCase();
+        let snippet = '';
+
+        const firstMatchIndex = keywords.reduce((acc, k) => {
+            const index = lowerPageContent.indexOf(k.toLowerCase());
+            return (index !== -1 && index < acc) ? index : acc;
+        }, Infinity);
+        
+        if (firstMatchIndex === Infinity) {
+             snippet = pageContent.substring(0, 250) + '...';
+        } else {
+            const start = Math.max(0, firstMatchIndex - 50);
+            const end = Math.min(pageContent.length, firstMatchIndex + 200);
+            snippet = (start > 0 ? '...' : '') + pageContent.substring(start, end) + (end < pageContent.length ? '...' : '');
+        }
+
+        const highlightRegex = new RegExp(keywords.map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'), 'gi');
+        const highlightedSnippet = snippet.replace(highlightRegex, (match) => `<mark>${match}</mark>`);
+        
+        return `<p class="result-snippet">${highlightedSnippet}</p>`;
+    }
+    
+    function showDocumentInPane(event) {
+        const docId = event.target.dataset.docId;
+        const pane = DOMElements.searchModal.interactionPane; 
+        let docContent;
+        
+        if (docId === 'main-chat') {
+            docContent = mainChatHistory.map(m => `${m.role}: ${m.content}`).join('\n\n');
+        } else {
+            const docObject = allDocs.find(d => d.id === docId); 
+            if (!docObject) return;
+            docContent = (docObject.pageSnippets || []).map(p => `--- Page ${p.page} ---\n${p.content}`).join('\n\n');
+        }
+        
+        pane.innerHTML = `<div class="p-2 border-b flex items-center gap-2"><input id="local-doc-search-input" class="w-full p-1 border rounded-md text-sm" placeholder="Find text..."><button id="local-doc-search-btn" class="p-1 hover:bg-gray-200 rounded-md"><i data-lucide="search" class="h-4 w-4"></i></button></div><div id="local-doc-viewer" class="flex-grow p-2 overflow-y-auto bg-white"></div>`;
+        const viewer = pane.querySelector('#local-doc-viewer');
+        viewer.textContent = docContent;
+        
+        pane.querySelector('#local-doc-search-btn').addEventListener('click', () => {
+            const term = pane.querySelector('#local-doc-search-input').value;
+            if (term) {
+                const regex = new RegExp(term, 'gi');
+                viewer.innerHTML = docContent.replace(regex, match => `<mark>${match}</mark>`);
+            } else {
+                viewer.textContent = docContent;
+            }
+        });
+        lucide.createIcons();
+    }
+    
+    function renderChatHistory() {
+        DOMElements.chat.messages.innerHTML = '';
+        mainChatHistory.forEach(msg => {
+            appendChatMessage(msg.content, msg.role === 'assistant' ? 'ai' : msg.role, { isHtml: msg.format === 'markdown' || msg.format === 'html' });
+        });
+    }
+
+    function appendDocChatMessage(text, type, options = {}) {
+        const messagesContainer = DOMElements.docChatModal.messages; const bubble = document.createElement('div'); bubble.className = `doc-chat-bubble ${type}`;
+        if (options.isHtml && marked) { bubble.innerHTML = marked.parse(text); } else { bubble.textContent = text; }
+        messagesContainer.appendChild(bubble); messagesContainer.scrollTop = messagesContainer.scrollHeight; return bubble;
+    }
+
+    async function viewDocument(doc) {
+        const { placeholderText, docViewer, viewerHeader, viewerTitle, viewerCopyBtn, viewerChatBtn, viewerEditBtn, viewerDownloadDocBtn } = DOMElements.library;
+        placeholderText.style.display = 'none'; docViewer.style.display = 'block'; viewerHeader.style.display = 'flex'; viewerTitle.textContent = doc.fileName;
+        viewerCopyBtn.dataset.docId = doc.id; viewerChatBtn.dataset.docId = doc.id; 
+        
+        const isDraft = doc.fileType === 'application/vnd.agentic-chat.draft-snippets';
+        if (isDraft) {
+            viewerEditBtn.classList.remove('hidden'); viewerEditBtn.dataset.docId = doc.id;
+            viewerDownloadDocBtn.classList.remove('hidden'); viewerDownloadDocBtn.dataset.docId = doc.id;
+        } else {
+            viewerEditBtn.classList.add('hidden');
+            viewerDownloadDocBtn.classList.add('hidden');
+        }
+
+        if (!doc.finalSummary || !doc.finalTimeline) {
+             appendChatMessage(`Generating summary & timeline for "${doc.fileName}"...`, 'system');
+             await ensureAdvanceSummaries();
+             doc = allDocs.find(d => d.id === doc.id);
+        }
+        
+        let htmlView = '';
+        if (doc.finalSummary || doc.finalTimeline) {
+             htmlView += `<div style="padding: 15px; border-bottom: 2px solid #eee; background: #fdfdfa; font-family: sans-serif; color: #333;">
+                <h3 style="font-weight: bold; font-size: 1.1em; margin-bottom: 8px;">Advanced Document Analysis</h3>
+                <h4>Summary</h4>
+                ${marked.parse(doc.finalSummary || 'Not available.')}
+                <hr style="margin: 15px 0;" />
+                <h4>Timeline</h4>
+                ${marked.parse(doc.finalTimeline || 'Not available.')}
+                </div>`;
+        }
+        
+        if (doc.pageSnippets && doc.pageSnippets.length > 0) {
+            doc.pageSnippets.forEach(snippet => {
+                const content = (snippet.content || '(No text extracted)').replace(/</g, "&lt;").replace(/>/g, "&gt;");
+                htmlView += `
+                    <div style="padding: 10px 15px; border-bottom: 1px solid #f0f0f0;">
+                        <b style="font-size: 0.8em; color: #666;">PAGE ${snippet.page}</b>
+                        <pre style="white-space: pre-wrap; word-wrap: break-word; font-family: 'Times New Roman', serif; font-size: 16px; margin-top: 5px;">${content}</pre>
+                    </div>
+                `;
+            });
+        } else {
+             htmlView += `<div style="padding: 20px; text-align: center; color: #888;"><i>No page content available.</i></div>`;
+        }
+        
+        docViewer.srcdoc = `<html><body style="margin:0;">${htmlView}</body></html>`;
+        lucide.createIcons();
+    }
+
+    async function extractContent(doc) {
+        const messagesContainer = document.getElementById('chat-messages');
+        const systemMessage = Array.from(messagesContainer.querySelectorAll('.flex.justify-center')).pop();
+
+        const pdfjsLib = window['pdfjs-dist/build/pdf'];
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js`;
+        
+        const data = atob(doc.dataURL.substring(doc.dataURL.indexOf(',') + 1));
+        const pdf = await pdfjsLib.getDocument({ data }).promise;
+        const numPages = pdf.numPages;
+        
+        doc.pageSnippets = [];
+        let worker = null;
+        if (isOcrEnabled) {
+             worker = await Tesseract.createWorker('eng');
+        }
+
+        for (let i = 1; i <= numPages; i++) {
+            if (systemMessage) {
+                systemMessage.querySelector('div').textContent = `Processing "${doc.fileName}" (Page ${i} of ${numPages})...`;
+            }
+            
+            const page = await pdf.getPage(i);
+            const content = await page.getTextContent();
+            let pageText = content.items.map(item => item.str).join(' ');
+
+            if (isOcrEnabled && worker && (!pageText || pageText.trim().length < 25)) {
+                if (systemMessage) {
+                    systemMessage.querySelector('div').textContent = `Scanned content detected on page ${i}. Performing OCR...`;
+                }
+                const ocrText = await performOcrOnPage(page, worker);
+                pageText = ocrText;
+            }
+            
+            const pageSnippet = { page: i, content: pageText };
+            doc.pageSnippets.push(pageSnippet);
+        }
+
+        if (worker) {
+            await worker.terminate();
+        }
+        delete doc.dataURL; 
+        return doc;
+    }
+
+    async function performOcrOnPage(page, worker) {
+        const viewport = page.getViewport({ scale: 2.0 });
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+        canvas.height = viewport.height;
+        canvas.width = viewport.width;
+        await page.render({ canvasContext: context, viewport: viewport }).promise;
+        const { data: { text } } = await worker.recognize(canvas.toDataURL('image/png'));
+        return text;
+    }
+    
+    // --- IMPORT/EXPORT & DATA MANAGEMENT ---
+    async function handleExportData() {
+        try {
+            const docs = await loadAllData('documents');
+            const chat = await loadAllData('mainChatHistory');
+            const editedDocs = await loadAllData('editedDocs');
+            const dataToExport = { allDocs: docs, mainChatHistory: chat, editedDocs: editedDocs };
+            const jsonString = JSON.stringify(dataToExport, null, 2);
+            const blob = new Blob([jsonString], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a'); a.href = url; a.download = `agentic-chat-export-${new Date().toISOString().replace(/:/g, '-')}.json`;
+            document.body.appendChild(a); a.click(); document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            appendChatMessage('Data successfully exported.', 'system');
+            closeModal(DOMElements.commandCenter.modal);
+        } catch (error) {
+            console.error('Export failed:', error);
+            appendChatMessage(`Export failed: ${error.message}`, 'system');
+        }
+    }
+
+    function handleImportData() {
+        const input = document.createElement('input');
+        input.type = 'file'; input.accept = '.json,application/json';
+        input.onchange = e => {
+            const file = e.target.files[0]; if (!file) return;
+            const reader = new FileReader();
+            reader.onload = async (event) => {
+                try {
+                    const data = JSON.parse(event.target.result);
+                    if (!data.allDocs || !data.mainChatHistory) throw new Error('Invalid import file structure.');
+                    closeModal(DOMElements.commandCenter.modal);
+                    await restoreStateFromImport(data);
+                } catch (error) {
+                    console.error('Import failed:', error);
+                    appendChatMessage(`Import failed: ${error.message}`, 'system');
+                }
+            };
+            reader.readAsText(file);
+        };
+        input.click();
+    }
+    
+    // MODIFIED: saveSettings now handles all new agent settings
+    async function saveSettings(keyType) {
+        if (keyType === 'ai') {
+            const newKey = DOMElements.settingsModal.apiKeyInput.value.trim();
+            const newUrl = DOMElements.settingsModal.apiUrlInput.value.trim();
+            const newModel = DOMElements.settingsModal.modelSelectInput.value;
+
+            if (newKey) { aiProviderApiKey = newKey; await saveData('settings', {id: 'aiProviderApiKey', value: newKey}); }
+            if (newUrl) { aiProviderApiUrl = newUrl; await saveData('settings', {id: 'aiProviderApiUrl', value: newUrl}); }
+            if (newModel) { selectedModel = newModel; await saveData('settings', {id: 'selectedModel', value: newModel}); }
+            
+            appendChatMessage('AI settings saved.', 'system');
+        } else if (keyType === 'tavily') {
+            const newKey = DOMElements.settingsModal.tavilyApiKeyInput.value.trim();
+            if (newKey) { tavilyApiKey = newKey; await saveData('settings', {id: 'tavilyApiKey', value: newKey}); }
+            appendChatMessage('Tavily API Key updated.', 'system');
+        } else if (keyType === 'agent') {
+            isOcrEnabled = DOMElements.settingsModal.ocrToggle.checked;
+            contextSwitchLimit = parseInt(DOMElements.settingsModal.contextSwitchLimitInput.value, 10) || 100000;
+            isDeepScanEnabled = DOMElements.settingsModal.deepScanToggle.checked;
+            deepScanChunkSize = parseInt(DOMElements.settingsModal.deepScanChunkInput.value, 10) || 75;
+
+            await saveData('settings', {id: 'isOcrEnabled', value: isOcrEnabled});
+            await saveData('settings', {id: 'contextSwitchLimit', value: contextSwitchLimit});
+            await saveData('settings', {id: 'isDeepScanEnabled', value: isDeepScanEnabled});
+            await saveData('settings', {id: 'deepScanChunkSize', value: deepScanChunkSize});
+            
+            appendChatMessage('Agent settings saved.', 'system');
+        }
+    }
+
+    async function handleClearChatHistory(confirmFirst = false) {
+        const doClear = confirmFirst ? confirm("Are you sure you want to clear the entire chat history?") : true;
+        if (doClear) {
+            mainChatHistory.length = 0;
+            DOMElements.chat.messages.innerHTML = '';
+            await clearStore('mainChatHistory');
+            await indexChatHistory();
+            appendChatMessage('Chat history has been cleared.', 'system');
+            if (DOMElements.commandCenter.modal.style.display === 'flex') {
+                closeModal(DOMElements.commandCenter.modal);
+            }
+        }
+    }
+
+    async function handleResetData() {
+        if(confirm("Are you sure you want to reset all data? This will clear all documents, drafts, and chats.")) {
+            await clearStore('documents');
+            await clearStore('editedDocs');
+            await handleClearChatHistory(false);
+            allDocs.length = 0; 
+            await reindexAllData();
+            renderLibraryDocs('');
+            if(DOMElements.library.viewerHeader) DOMElements.library.viewerHeader.style.display = 'none';
+            if(DOMElements.library.placeholderText) DOMElements.library.placeholderText.style.display = 'block';
+            appendChatMessage('All app data has been reset.', 'system');
+            closeModal(DOMElements.settingsModal.modal);
+        }
+    }
+    
+    // MODIFIED: loadStateFromDB now loads all new agent settings
+    async function loadStateFromDB() {
+        const savedApiKey = await loadData('settings', 'aiProviderApiKey');
+        const savedApiUrl = await loadData('settings', 'aiProviderApiUrl');
+        const savedModel = await loadData('settings', 'selectedModel');
+        if (savedApiKey) aiProviderApiKey = savedApiKey.value;
+        if (savedApiUrl) aiProviderApiUrl = savedApiUrl.value; else aiProviderApiUrl = GROQ_API_URL;
+        if (savedModel) selectedModel = savedModel.value;
+
+        const savedTavilyKey = await loadData('settings', 'tavilyApiKey');
+        if(savedTavilyKey) tavilyApiKey = savedTavilyKey.value;
+        
+        const savedOcr = await loadData('settings', 'isOcrEnabled');
+        isOcrEnabled = savedOcr !== undefined ? savedOcr.value : true;
+
+        const savedContextLimit = await loadData('settings', 'contextSwitchLimit');
+        contextSwitchLimit = savedContextLimit !== undefined ? savedContextLimit.value : 100000;
+
+        const savedDeepScan = await loadData('settings', 'isDeepScanEnabled');
+        isDeepScanEnabled = savedDeepScan !== undefined ? savedDeepScan.value : false;
+
+        const savedChunkSize = await loadData('settings', 'deepScanChunkSize');
+        deepScanChunkSize = savedChunkSize !== undefined ? savedChunkSize.value : 75;
+
+        const savedResearchSession = await loadData('draftState', 'legalResearchSession');
+        if (savedResearchSession) legalResearchSession = savedResearchSession;
+
+        allDocs = await loadAllData('documents') || [];
+        mainChatHistory = await loadAllData('mainChatHistory') || [];
+    }    
+
+    async function reindexAllData() {
+        oramaDb = await Orama.create({ schema: { 
+            id: 'string', docId: 'string', fileName: 'string', 
+            pageNumber: 'number', pageContent: 'string' 
+        } });
+        
+        for (const doc of allDocs) {
+            if (doc.pageSnippets && doc.pageSnippets.length > 0) {
+                const entries = doc.pageSnippets.map(snippet => ({
+                    id: `${doc.id}-p${snippet.page}`, docId: doc.id, fileName: doc.fileName,
+                    pageNumber: snippet.page, pageContent: snippet.content
+                }));
+                if (entries.length > 0) {
+                    await Orama.insertMultiple(oramaDb, entries);
+                }
+            }
+        }
+        await indexChatHistory();
+    }
+
+    async function restoreStateFromImport(data) {
+        const loadingOverlay = document.getElementById('loading-overlay');
+        loadingOverlay.style.display = 'flex'; loadingOverlay.style.opacity = '1';
+        try {
+            setLoadingText('Clearing old data...');
+            await clearStore('documents');
+            await clearStore('mainChatHistory');
+            await clearStore('editedDocs');
+            setLoadingText('Importing new data...');
+            for (const doc of data.allDocs) { await saveData('documents', doc); }
+            for (const msg of data.mainChatHistory) { await saveData('mainChatHistory', msg); }
+            if (data.editedDocs) {
+                for (const draft of data.editedDocs) { await saveData('editedDocs', draft); }
+            }
+            setLoadingText('Reloading state...');
+            await loadStateFromDB();
+            setLoadingText('Re-indexing search database...');
+            await reindexAllData();
+            setLoadingText('Restoring chat history...');
+            renderChatHistory();
+            appendChatMessage('Data successfully imported and restored.', 'system');
+        } catch (error) {
+            console.error('Failed to restore state:', error);
+            appendChatMessage(`Error during data restoration: ${error.message}`, 'system');
+        } finally {
+            setLoadingText('Finalizing...');
+            loadingOverlay.style.opacity = '0';
+            setTimeout(() => { loadingOverlay.style.display = 'none'; }, 300);
+        }
+    }
+
+    // --- EDITED DRAFTS MANAGEMENT ---
+    async function openEditedDocsModal() {
+        await renderEditedDocsList();
+        openModal(DOMElements.editedDocs.modal);
+        if (DOMElements.commandCenter.modal.style.display === 'flex') {
+            closeModal(DOMElements.commandCenter.modal);
+        }
+    }
+
+    async function renderEditedDocsList() {
+        const { list, placeholder, viewerHeader, viewer } = DOMElements.editedDocs;
+        const drafts = await loadAllData('editedDocs');
+        if (!drafts || drafts.length === 0) {
+            list.innerHTML = '<p class="p-4 text-sm text-gray-500 text-center">No edited drafts found.</p>';
+            placeholder.style.display = 'block';
+            viewerHeader.style.display = 'none';
+            viewer.style.display = 'none';
+            return;
+        }
+
+        list.innerHTML = '';
+        drafts.sort((a,b) => new Date(b.lastModified) - new Date(a.lastModified)).forEach(doc => {
+             const item = document.createElement('div');
+             item.className = 'document-list-item p-2 rounded-md hover:bg-gray-100 cursor-pointer';
+             item.dataset.id = doc.id;
+             item.innerHTML = `<span class="flex items-center gap-2 text-sm font-medium truncate"><i data-lucide="file-check-2" class="h-5 w-5 text-gray-500"></i> ${doc.fileName}</span><p class="text-xs text-gray-400 ml-7">Modified: ${new Date(doc.lastModified).toLocaleString()}</p>`;
+             list.appendChild(item);
+        });
+        lucide.createIcons();
+    }
+
+    function viewEditedDoc(doc) {
+        const { placeholder, viewer, viewerHeader, viewerTitle, reopenBtn, downloadBtn, deleteBtn } = DOMElements.editedDocs;
+        placeholder.style.display = 'none';
+        viewer.style.display = 'block';
+        viewerHeader.style.display = 'flex';
+        viewerTitle.textContent = doc.fileName;
+        viewer.srcdoc = doc.htmlContent;
+        reopenBtn.dataset.docId = doc.id;
+        downloadBtn.dataset.docId = doc.id;
+        deleteBtn.dataset.docId = doc.id;
+    }
+
+    async function handleReopenDraft(docId) {
+        if (!docId) return;
+        const doc = await loadData('editedDocs', docId);
+        if (doc) {
+            openDraftEditor(doc);
+        }
+    }
+
+    async function handleDownloadHtml(docId) {
+        if (!docId) return;
+        const doc = await loadData('editedDocs', docId);
+        if (doc) {
+            const blob = new Blob([doc.htmlContent], { type: 'text/html' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = doc.fileName;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+    }
+
+    async function handleDeleteHtmlDraft(docId) {
+        if (!docId) return;
+        const rawDoc = await loadData('editedDocs', docId);
+        if (confirm(`Are you sure you want to permanently delete the draft "${rawDoc.fileName}"?\nThis will remove both the editable HTML version and its indexed content for the AI.`)) {
+            await deleteData('editedDocs', docId);
+            await deleteData('documents', docId);
+            allDocs = allDocs.filter(d => d.id !== docId);
+            await renderEditedDocsList();
+            await reindexAllData();
+            appendChatMessage(`Draft "${rawDoc.fileName}" has been deleted.`, 'system');
+        }
+    }
+</script>
+</body></html>
